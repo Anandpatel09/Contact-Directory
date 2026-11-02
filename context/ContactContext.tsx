@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { Contact } from '../Components/ContactForm';
@@ -6,20 +5,27 @@ import type { Contact } from '../Components/ContactForm';
 type ContactContextType = {
   contacts: Contact[];
   setContacts: Dispatch<SetStateAction<Contact[]>>;
+
   favorites: string[];
   setFavorites: Dispatch<SetStateAction<string[]>>;
-};
 
-const ContactContext = createContext<ContactContextType | undefined>(
-  undefined
-);
+  loading: boolean;
+  error: string | null;
+  refreshContacts: () => Promise<void>;
+};
+const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
 type ContactProviderProps = {
   children: React.ReactNode;
   contacts: Contact[];
   setContacts: Dispatch<SetStateAction<Contact[]>>;
+
   favorites: string[];
   setFavorites: Dispatch<SetStateAction<string[]>>;
+
+  loading: boolean;
+  error: string | null;
+  refreshContacts: () => Promise<void>;
 };
 
 export const ContactProvider = ({
@@ -28,10 +34,21 @@ export const ContactProvider = ({
   setContacts,
   favorites,
   setFavorites,
+  loading,
+  error,
+  refreshContacts,
 }: ContactProviderProps) => {
   return (
     <ContactContext.Provider
-      value={{ contacts, setContacts, favorites, setFavorites }}
+      value={{
+        contacts,
+        setContacts,
+        favorites,
+        setFavorites,
+        loading,
+        error,
+        refreshContacts,
+      }}
     >
       {children}
     </ContactContext.Provider>

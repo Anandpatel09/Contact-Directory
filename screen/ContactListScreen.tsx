@@ -1,30 +1,48 @@
 import React, { useState } from 'react';
 
 import {
-  Alert,
-  Button,
-  FlatList,
-  Pressable,
-  StyleSheet,
+  View,
   Text,
   TextInput,
+  FlatList,
+  ActivityIndicator,
   TouchableOpacity,
-  View,
+  Alert,
+  RefreshControl,
+  StyleSheet,
 } from 'react-native';
 
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import ContactCard from '../Components/ContactCard';
-import AddContactForm, { Contact } from '../Components/ContactForm';
+import type { RootStackParamList } from '../navigation/types';
 
 import { useContacts } from '../context/ContactContext';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ContactList'>;
+import AddContactForm, { type Contact } from '../Components/ContactForm';
 
-const ContactListScreen = ({ navigation }: Props) => {
-  // Get shared contacts and favorites from Context
-  const { contacts, setContacts, favorites, setFavorites } = useContacts();
+import ContactCard from '../Components/ContactCard';
+
+// Accept navigation from either ContactList or Favorites
+type ContactListNavigation =
+  | NativeStackNavigationProp<RootStackParamList, 'ContactList'>
+  | NativeStackNavigationProp<RootStackParamList, 'Favorites'>;
+
+type Props = {
+  navigation: ContactListNavigation;
+  showFavorites?: boolean;
+};
+
+const ContactListScreen = ({ navigation, showFavorites = false }: Props) => {
+  // Get shared data from Context
+  const {
+    contacts,
+    setContacts,
+    favorites,
+    setFavorites,
+    loading,
+    error,
+    refreshContacts,
+  } = useContacts();
 
   // Local states
   const [search, setSearch] = useState('');
@@ -33,16 +51,15 @@ const ContactListScreen = ({ navigation }: Props) => {
 
   // Toggle Favorite
   const toggleFavorite = (contactId: string) => {
-    setFavorites(previousFavorites =>
-      previousFavorites.includes(contactId)
-        ? previousFavorites.filter(id => id !== contactId)
-        : [...previousFavorites, contactId],
+    setFavorites(previous =>
+      previous.includes(contactId)
+        ? previous.filter(id => id !== contactId)
+        : [...previous, contactId],
     );
   };
 
   // Delete Contact
-
-  const deleteContact = (id: string) => {
+  const deleteContact = (contactId: string) => {
     Alert.alert(
       'Delete Contact',
       'Are you sure you want to delete this contact?',
@@ -54,158 +71,207 @@ const ContactListScreen = ({ navigation }: Props) => {
         {
           text: 'Delete',
           style: 'destructive',
-
           onPress: () => {
-            // Remove contact from contacts list
-            setContacts(previousContacts =>
-              previousContacts.filter(contact => contact.id !== id),
+            setContacts(previous =>
+              previous.filter(contact => contact.id !== contactId),
             );
 
-            // Remove contact from favorites
-            setFavorites(previousFavorites =>
-              previousFavorites.filter(favoriteId => favoriteId !== id),
-            );
-
-            // Clear editing selection if deleted contact was being edited
-            setEditingContact(previous =>
-              previous?.id === id ? null : previous,
-            );
+            // Also remove contact from favorites
+            setFavorites(previous => previous.filter(id => id !== contactId));
           },
         },
       ],
-      { cancelable: true },
     );
   };
 
-  // Edit Contact
-
+  // Open Edit Form
   const handleEditContact = (contact: Contact) => {
     setEditingContact(contact);
     setModalVisible(true);
   };
 
-  // Open Add Contact Form
-
+  // Open Add Form
   const handleOpenAddForm = () => {
     setEditingContact(null);
     setModalVisible(true);
   };
 
-  // Add New Contact
-
+  // Add Contact
   const handleAddContact = (newContact: Contact) => {
-    setContacts(previousContacts => [newContact, ...previousContacts]);
+    setContacts(previous => [newContact, ...previous]);
+    setModalVisible(false);
   };
 
-  // Update Existing Contact
-
+  // Update Contact
   const handleUpdateContact = (updatedContact: Contact) => {
-    setContacts(previousContacts =>
-      previousContacts.map(contact =>
+    setContacts(previous =>
+      previous.map(contact =>
         contact.id === updatedContact.id ? updatedContact : contact,
       ),
     );
+
+    setModalVisible(false);
+    setEditingContact(null);
   };
 
   // Close Form
-
   const handleCloseForm = () => {
     setModalVisible(false);
     setEditingContact(null);
   };
 
-  // Search Contacts
+  // Show all contacts or only favorites
+  const displayedContacts = showFavorites
+    ? contacts.filter(contact => favorites.includes(contact.id))
+    : contacts;
 
-  const filteredContacts = contacts.filter(contact => {
+  // Search Contacts
+  const filteredContacts = displayedContacts.filter(contact => {
     const query = search.trim().toLowerCase();
 
     return (
       contact.name.toLowerCase().includes(query) ||
-      contact.phone.includes(query)
+      contact.phone.toLowerCase().includes(query) ||
+      (contact.email?.toLowerCase().includes(query) ?? false)
     );
   });
 
-  // Navigate to Contact Details
-
-  const openContactDetails = (contactId: string) => {
-    navigation.navigate('ContactDetails', {
-      contactId,
-    });
-  };
-
-  // UI
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Contact Directory</Text>
+      {/* Header */}
+      <Text style={styles.title}>
+        {showFavorites ? 'Favorite Contacts' : 'Contact Directory'}
+      </Text>
 
-      <Text style={styles.subtitle}>All contacts in one place</Text>
+      <Text style={styles.subtitle}>
+        {showFavorites ? 'Your favorite contacts' : 'All contacts in one place'}
+      </Text>
 
+      {/* Favorite Count */}
       <Text style={styles.favoriteCount}>
         Total Favorites: {favorites.length}
       </Text>
 
+      {/* Search Input */}
       <TextInput
         style={styles.searchInput}
-        placeholder="Search by name or phone"
+        placeholder="Search by name, phone or email..."
         placeholderTextColor="#888"
         value={search}
         onChangeText={setSearch}
-        autoCorrect={false}
       />
 
-      {/* Add Contact Button */}
+      {/* Add and Favorites Buttons */}
 
-      <View style={styles.addButton}>
-        <Button title="+ Add Contact" onPress={handleOpenAddForm} />
-      </View>
+      {!showFavorites && (
+        <>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleOpenAddForm}
+          >
+            <Text style={styles.buttonText}>+ Add Contact</Text>
+          </TouchableOpacity>
 
-      {/* Favo button */}
-      {/* <Pressable onPress={openFavoriteDetails} style={styles.editButton}>
-               <Text style={styles.editButtonText}>Favo</Text>
-             </Pressable> */}
+          <TouchableOpacity
+            style={styles.favoritesButton}
+            onPress={() => navigation.navigate('Favorites')}
+          >
+            <Text style={styles.buttonText}>View Favorites</Text>
+          </TouchableOpacity>
+        </>
+      )}
 
-      <TouchableOpacity
-        style={styles.favoritesButton}
-        onPress={() => navigation.navigate('FavoriteDetails')}
-      >
-        <Text style={styles.favoritesButtonText}>View Favorites Contacts</Text>
-      </TouchableOpacity>
+      {/* Back Button on Favorites Screen */}
+      {showFavorites && (
+        <TouchableOpacity
+          style={styles.favoritesButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.buttonText}>Go Back</Text>
+        </TouchableOpacity>
+      )}
 
-      {/* Search Input */}
-      {/* Contact List */}
+      {/* Refresh Error */}
+      {error && contacts.length > 0 && (
+        <View style={styles.refreshError}>
+          <Text style={styles.errorText}>{error}</Text>
 
-      <FlatList
-        style={styles.contactList}
-        data={filteredContacts}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <ContactCard
-            id={item.id}
-            name={item.name}
-            phone={item.phone}
-            email={item.email}
-            image={item.image}
-            isFavorite={favorites.includes(item.id)}
-            // Navigate when card details are pressed
-            onPress={() => openContactDetails(item.id)}
-            // Favorite button
-            onFavoriteButton={() => toggleFavorite(item.id)}
-            // Delete button
-            onDeleteContact={() => deleteContact(item.id)}
-            // Edit button
-            onEditContact={() => handleEditContact(item)}
-            // //Favo btn
-            // navigateToFavorite={()=>openFavoriteDetails(item)}
-          />
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No contacts found</Text>
-        }
-      />
+          <TouchableOpacity onPress={refreshContacts}>
+            <Text style={styles.retryText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* Add/Edit Contact Modal */}
+      {/* Initial Loading */}
+      {loading && contacts.length === 0 ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#a94b3f" />
 
+          <Text style={styles.message}>Loading contacts...</Text>
+        </View>
+      ) : error && contacts.length === 0 ? (
+        /* Initial API Error */
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={refreshContacts}
+          >
+            <Text style={styles.buttonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        /* Contact List */
+        <FlatList
+          data={filteredContacts}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <ContactCard
+              id={item.id}
+              name={item.name}
+              phone={item.phone}
+              email={item.email}
+              image={item.image}
+              isFavorite={favorites.includes(item.id)}
+              onPress={() =>
+                navigation.navigate('ContactDetails', {
+                  contactId: item.id,
+                })
+              }
+              onFavoriteButton={() => toggleFavorite(item.id)}
+              onDeleteContact={() => deleteContact(item.id)}
+              onEditContact={() => handleEditContact(item)}
+            />
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && contacts.length > 0}
+              onRefresh={refreshContacts}
+              colors={['#a94b3f']}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <Text style={styles.message}>
+                {search.trim()
+                  ? 'No contacts found.'
+                  : showFavorites
+                  ? 'No favorite contacts yet.'
+                  : 'No contacts available.'}
+              </Text>
+            </View>
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={
+            filteredContacts.length === 0
+              ? styles.emptyList
+              : styles.listContent
+          }
+        />
+      )}
+
+      {/* Add / Edit Contact Modal */}
       <AddContactForm
         visible={modalVisible}
         contacts={contacts}
@@ -221,84 +287,114 @@ const ContactListScreen = ({ navigation }: Props) => {
 export default ContactListScreen;
 
 // Styles
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    backgroundColor: '#f5f5f5',
+    padding: 16,
   },
 
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
-    color: '#111827',
+    color: '#222',
+    marginTop: 10,
   },
 
   subtitle: {
     fontSize: 14,
-    color: '#555555',
-    marginTop: 8,
+    color: '#777',
+    marginTop: 4,
   },
 
   favoriteCount: {
-    fontSize: 14,
-    color: '#333333',
-    marginTop: 12,
-    marginBottom: 15,
-  },
-
-  searchInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#111827',
-  },
-
-  addButton: {
-    marginTop: 12,
-    marginBottom: 8,
-  },
-
-  contactList: {
-    flex: 1,
-    marginTop: 8,
-  },
-
-  emptyText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 30,
-  },
-  editButton: {
-    backgroundColor: '#DBEAFE',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    marginLeft: 5,
-  },
-
-  editButtonText: {
-    color: '#1D4ED8',
+    fontSize: 15,
     fontWeight: '600',
-  },
-  favoritesButton: {
-    backgroundColor: '#1eb0e9',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    color: '#a94b3f',
+    marginTop: 12,
     marginBottom: 12,
   },
 
-  favoritesButtonText: {
-    color: '#FFFFFF',
+  searchInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#fff',
+    color: '#222',
+    marginBottom: 12,
+  },
+
+  addButton: {
+    backgroundColor: '#a94b3f',
+    padding: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+
+  favoritesButton: {
+    backgroundColor: '#333',
+    padding: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+
+  buttonText: {
+    color: '#fff',
     fontSize: 15,
+    fontWeight: '600',
+  },
+
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 25,
+  },
+
+  message: {
+    fontSize: 15,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+
+  errorText: {
+    fontSize: 14,
+    color: '#d32f2f',
+    textAlign: 'center',
+  },
+
+  retryButton: {
+    backgroundColor: '#a94b3f',
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 15,
+  },
+
+  retryText: {
+    color: '#a94b3f',
     fontWeight: 'bold',
+    marginTop: 8,
+  },
+
+  refreshError: {
+    backgroundColor: '#fff0f0',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+
+  emptyList: {
+    flexGrow: 1,
+  },
+
+  listContent: {
+    paddingBottom: 20,
   },
 });
