@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -7,12 +6,16 @@ import type { RootStackParamList } from './types';
 import ContactListScreen from '../screen/ContactListScreen';
 import ContactDetailsScreen from '../screen/ContactDetailScreen';
 import FavoritesScreen from '../screen/FavoriteScreen';
+
+// import ContactListScreen from '../screens/ContactListScreen';
+// import ContactDetailsScreen from '../screens/ContactDetailsScreen';
+// import FavoritesScreen from '../screens/FavoritesScreen';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
   return (
     <Stack.Navigator
-      initialRouteName="ContactList"
       screenOptions={{
         headerShown: false,
       }}
