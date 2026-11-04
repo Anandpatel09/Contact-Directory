@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-
+import { useContacts } from '../context/ContactContext';
 export type Contact = {
   id: string;
   name: string;
@@ -31,12 +31,20 @@ type AddContactFormProps = {
 
 const AddContactForm = ({
   visible,
-  contacts,
+  // contacts,
   editingContact,
   onClose,
   onAddContact,
   onUpdateContact,
 }: AddContactFormProps) => {
+
+
+  const {
+  contacts,
+  addContact,
+  updateContact,
+} = useContacts();
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -57,19 +65,6 @@ const AddContactForm = ({
       setErrors({ name: '', phone: '', email: '' });
     }
   }, [visible, editingContact]);
-
-  // const prefillForm = (contact: Contact | null) => {
-  //   setName(contact?.name ?? '');
-  //   setPhone(contact?.phone ?? '');
-  //   setEmail(contact?.email ?? '');
-
-  //   setErrors({
-  //     name: '',
-  //     phone: '',
-  //     email: '',
-  //   });
-  // };
-
   const resetForm = () => {
     setName('');
     setPhone('');

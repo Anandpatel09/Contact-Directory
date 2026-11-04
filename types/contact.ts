@@ -10,5 +10,5 @@ export interface Contact {
   name: string;
   phone: string;
   email?: string;
-  image: string | null;
+  image?: string | undefined;
 }

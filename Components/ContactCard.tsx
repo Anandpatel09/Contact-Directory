@@ -74,9 +74,7 @@ const ContactCard = ({
         <Text style={styles.editButtonText}>Edit</Text>
       </Pressable>
       {/* Favo button */}
-      {/* <Pressable onPress={navigateToFavorite} style={styles.editButton}>
-        <Text style={styles.editButtonText}>Favo</Text>
-      </Pressable> */}
+     
     </View>
   );
 };
