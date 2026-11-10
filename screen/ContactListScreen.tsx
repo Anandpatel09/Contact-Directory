@@ -46,9 +46,26 @@ const ContactListScreen = ({ navigation }: Props) => {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
 
   // Search contacts by name
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(search.trim().toLowerCase()),
-  );
+  // const filteredContacts = contacts.filter(contact =>
+  //   contact.name.toLowerCase().includes(search.trim().toLowerCase()),
+  // );
+
+  const filteredContacts = contacts.filter(contact => {
+    const searchText = search.toLowerCase().trim();
+
+    const contactName = contact.name.toLowerCase();
+
+    // Remove spaces and special characters from phone numbers
+    const searchPhone = search.replace(/\D/g, '');
+    const contactPhone = contact.phone.replace(/\D/g, '');
+
+    const nameMatch = contactName.includes(searchText);
+
+    const phoneMatch =
+      searchPhone.length > 0 && contactPhone.includes(searchPhone);
+
+    return nameMatch || phoneMatch;
+  });
 
   // Open add contact form
   const handleAddContact = () => {

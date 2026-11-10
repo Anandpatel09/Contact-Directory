@@ -36,23 +36,16 @@ const isValidContact = (item: unknown): item is Contact => {
     typeof contact.id === 'string' &&
     typeof contact.name === 'string' &&
     typeof contact.phone === 'string' &&
-    (contact.email === undefined ||
-      typeof contact.email === 'string') &&
-    (contact.image === null ||
-      typeof contact.image === 'string')
+    (contact.email === undefined || typeof contact.email === 'string') &&
+    (contact.image === null || typeof contact.image === 'string')
   );
 };
 
-//FAVORITES 
+//FAVORITES
 
-export const saveFavorites = async (
-  favorites: string[],
-): Promise<void> => {
+export const saveFavorites = async (favorites: string[]): Promise<void> => {
   try {
-    await AsyncStorage.setItem(
-      FAVORITES_KEY,
-      JSON.stringify(favorites),
-    );
+    await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
   } catch (error) {
     console.log('Error saving favorites:', error);
     throw error;
@@ -67,24 +60,15 @@ export const getFavorites = async (): Promise<string[]> => {
   }
 
   return Array.from(
-    new Set(
-      data.filter(
-        (item): item is string => typeof item === 'string',
-      ),
-    ),
+    new Set(data.filter((item): item is string => typeof item === 'string')),
   );
 };
 
-// LOCAL CONTACTS 
+// LOCAL CONTACTS
 
-export const saveLocalContacts = async (
-  contacts: Contact[],
-): Promise<void> => {
+export const saveLocalContacts = async (contacts: Contact[]): Promise<void> => {
   try {
-    await AsyncStorage.setItem(
-      LOCAL_CONTACTS_KEY,
-      JSON.stringify(contacts),
-    );
+    await AsyncStorage.setItem(LOCAL_CONTACTS_KEY, JSON.stringify(contacts));
   } catch (error) {
     console.log('Error saving local contacts:', error);
     throw error;
@@ -102,28 +86,20 @@ export const getLocalContacts = async (): Promise<Contact[]> => {
 
   // Remove duplicate contact IDs
   return Array.from(
-    new Map(
-      validContacts.map(contact => [contact.id, contact]),
-    ).values(),
+    new Map(validContacts.map(contact => [contact.id, contact])).values(),
   );
 };
 
-// DELETED API CONTACTS 
+// DELETED API CONTACTS
 
-export const saveDeletedContactIds = async (
-  ids: string[],
-): Promise<void> => {
+export const saveDeletedContactIds = async (ids: string[]): Promise<void> => {
   try {
-    await AsyncStorage.setItem(
-      DELETED_CONTACTS_KEY,
-      JSON.stringify(ids),
-    );
+    await AsyncStorage.setItem(DELETED_CONTACTS_KEY, JSON.stringify(ids));
   } catch (error) {
     console.log('Error saving deleted IDs:', error);
     throw error;
   }
 };
-
 
 export const getDeletedContactIds = async (): Promise<string[]> => {
   const data = await getStoredData(DELETED_CONTACTS_KEY);
@@ -133,10 +109,6 @@ export const getDeletedContactIds = async (): Promise<string[]> => {
   }
 
   return Array.from(
-    new Set(
-      data.filter(
-        (item): item is string => typeof item === 'string',
-      ),
-    ),
+    new Set(data.filter((item): item is string => typeof item === 'string')),
   );
 };

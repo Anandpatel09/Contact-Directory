@@ -1,9 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 import type { ReactNode } from 'react';
 
@@ -19,6 +14,7 @@ import {
   saveLocalContacts,
   saveDeletedContactIds,
 } from '../utils/storage';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ContactContextType = {
   contacts: Contact[];
@@ -39,9 +35,7 @@ type ContactContextType = {
   refreshContacts: () => Promise<void>;
 };
 
-const ContactContext = createContext<
-  ContactContextType | undefined
->(undefined);
+const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
 type Props = {
   children: ReactNode;
@@ -61,6 +55,8 @@ export const ContactProvider = ({ children }: Props) => {
   const fetchApiContacts = async () => {
     const response = await getContacts();
 
+    // console.log('data from response ', response);
+
     const formattedContacts: Contact[] = response.map(user => ({
       id: String(user.id),
       name: user.name,
@@ -78,15 +74,14 @@ export const ContactProvider = ({ children }: Props) => {
     const initializeApp = async () => {
       try {
         // Restore saved data first
-        const [
-          savedFavorites,
-          savedLocalContacts,
-          savedDeletedIds,
-        ] = await Promise.all([
-          getFavorites(),
-          getLocalContacts(),
-          getDeletedContactIds(),
-        ]);
+        const [savedFavorites, savedLocalContacts, savedDeletedIds] =
+          await Promise.all([
+            getFavorites(),
+            getLocalContacts(),
+            getDeletedContactIds(),
+          ]);
+
+        console.log('Restored contacts:', savedLocalContacts);
 
         setFavorites(savedFavorites);
         setLocalContacts(savedLocalContacts);
@@ -97,9 +92,7 @@ export const ContactProvider = ({ children }: Props) => {
           await fetchApiContacts();
         } catch (apiError) {
           console.log('API initialization error:', apiError);
-          setError(
-            'Unable to load contacts. Please check your internet connection.',
-          );
+          setError('Unable to find the requested API resource.');
         }
       } catch (storageError) {
         console.log('Initialization error:', storageError);
@@ -121,9 +114,7 @@ export const ContactProvider = ({ children }: Props) => {
       await fetchApiContacts();
     } catch (apiError) {
       console.log('Refresh error:', apiError);
-      setError(
-        'Unable to refresh contacts. Please try again.',
-      );
+      setError('Unable to refresh contacts. Please try again.');
     } finally {
       setIsRefreshing(false);
     }
@@ -136,7 +127,7 @@ export const ContactProvider = ({ children }: Props) => {
 
   const contacts = [
     ...new Map(
-      [...visibleApiContacts, ...localContacts].map(contact => [
+      [ ...localContacts,...visibleApiContacts].map(contact => [
         contact.id,
         contact,
       ]),
@@ -169,9 +160,7 @@ export const ContactProvider = ({ children }: Props) => {
   // Update contact
   const updateContact = async (updatedContact: Contact) => {
     const updatedContacts = localContacts.map(contact =>
-      contact.id === updatedContact.id
-        ? updatedContact
-        : contact,
+      contact.id === updatedContact.id ? updatedContact : contact,
     );
 
     setLocalContacts(updatedContacts);
@@ -200,9 +189,7 @@ export const ContactProvider = ({ children }: Props) => {
     }
 
     // Remove deleted contact from favorites
-    const updatedFavorites = favorites.filter(
-      id => id !== contact.id,
-    );
+    const updatedFavorites = favorites.filter(id => id !== contact.id);
 
     setFavorites(updatedFavorites);
 
@@ -244,9 +231,7 @@ export const useContacts = () => {
   const context = useContext(ContactContext);
 
   if (!context) {
-    throw new Error(
-      'useContacts must be used inside ContactProvider',
-    );
+    throw new Error('useContacts must be used inside ContactProvider');
   }
 
   return context;

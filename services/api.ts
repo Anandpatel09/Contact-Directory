@@ -1,26 +1,3 @@
-// import axios from 'axios';
-// import type { ApiContact } from '../types/contact';
-
-// const api = axios.create({
-//   baseURL: 'https://jsonplaceholder.typicode.com',
-//   // timeout: 10000,
-//   headers: {
-//     'Content-Type': 'application/json',
-//   },
-// });
-
-// export const getContacts = async (): Promise<ApiContact[]> => {
-//   const response = await api.get<ApiContact[]>('/users');
-
-//   // Check HTTP response
-//   if (response.status !== 200) {
-//     throw new Error('Failed to fetch contacts');
-//   }
-//   return response.data;
-// };
-
-// export default api;
-
 import axios from 'axios';
 
 export type ApiContact = {
