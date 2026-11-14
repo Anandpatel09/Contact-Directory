@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 import {
@@ -21,7 +20,7 @@ import { useContacts } from '../context/ContactContext';
 type Props = NativeStackScreenProps<RootStackParamList, 'Favorites'>;
 
 const FavoritesScreen = ({ navigation }: Props) => {
-  const { contacts, favorites, toggleFavorite, clearFavorites } = useContacts();
+  const { contacts, favorites, dispatch } = useContacts();
 
   const favoriteContacts = contacts.filter(contact =>
     favorites.includes(contact.id),
@@ -41,7 +40,10 @@ const FavoritesScreen = ({ navigation }: Props) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await clearFavorites();
+              // await clearFavorites();
+              dispatch({
+                type: 'CLEAR_FAVORITES',
+              });
             } catch (error) {
               Alert.alert('Error', 'Unable to clear favorites.');
             }
@@ -90,8 +92,9 @@ const FavoritesScreen = ({ navigation }: Props) => {
                 })
               }
               onFavoriteButton={() => {
-                toggleFavorite(item.id).catch(() => {
-                  Alert.alert('Error', 'Unable to update favorite.');
+                dispatch({
+                  type: 'TOGGLE_FAVORITE',
+                  payload: item.id,
                 });
               }}
             />

@@ -46,16 +46,16 @@ const ContactListScreen = ({ navigation }: Props) => {
     deleteContact,
     refreshContacts,
     loadMoreContacts,
+    dispatch,
   } = useContacts();
-
   const [search, setSearch] = useState('');
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
 
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
- 
- //Debounce the users input
+
+  //Debounce the users input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -110,15 +110,6 @@ const ContactListScreen = ({ navigation }: Props) => {
           ).values(),
         ];
 
-  useEffect(() => {
-    if (debouncedSearch === '') {
-      clearSearchResults();
-      return;
-    }
-
-    searchContacts(debouncedSearch);
-  }, [debouncedSearch]);
-
   // Open add contact form
   const handleAddContact = () => {
     setEditingContact(null);
@@ -155,7 +146,14 @@ const ContactListScreen = ({ navigation }: Props) => {
 
           onPress: async () => {
             try {
-              await deleteContact(contact);
+              if (contact.id.startsWith('local_')) {
+                dispatch({
+                  type: 'DELETE_CONTACT',
+                  payload: contact.id,
+                });
+              } else {
+                await deleteContact(contact);
+              }
             } catch (deleteError) {
               Alert.alert('Error', 'Unable to save the deleted contact.');
             }
@@ -181,6 +179,13 @@ const ContactListScreen = ({ navigation }: Props) => {
       </View>
     );
   }
+  //handle favorite
+  const handleToggleFavorite = (id: string) => {
+    dispatch({
+      type: 'TOGGLE_FAVORITE',
+      payload: id,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -243,11 +248,8 @@ const ContactListScreen = ({ navigation }: Props) => {
                 })
               }
               // Favorite / unfavorite
-              onFavoriteButton={() => {
-                toggleFavorite(item.id).catch(() => {
-                  Alert.alert('Error', 'Unable to save favorite status.');
-                });
-              }}
+             
+              onFavoriteButton={() => handleToggleFavorite(item.id)}
               // Edit contact
               onEditContact={
                 item.id.startsWith('local_')
@@ -268,8 +270,6 @@ const ContactListScreen = ({ navigation }: Props) => {
 
             loadMoreContacts();
           }}
-          
-          
           onEndReachedThreshold={0.5}
           // Pull-to-refresh
           refreshControl={
@@ -292,7 +292,6 @@ const ContactListScreen = ({ navigation }: Props) => {
               <Text style={styles.noMoreText}>No more contacts</Text>
             ) : undefined
           }
-         
           ListEmptyComponent={
             <Text style={styles.emptyText}>
               {isSearching
@@ -308,18 +307,21 @@ const ContactListScreen = ({ navigation }: Props) => {
         />
 
         {/* Add/Edit Contact Form */}
+       
+
         <ContactForm
           visible={modalVisible}
           contacts={contacts}
           editingContact={editingContact}
           onClose={handleCloseForm}
-          onSave={async contact => {
-            if (editingContact) {
-              await updateContact(contact);
-            } else {
-              await addContact(contact);
-            }
-          }}
+        
+            onSave={async contact => {
+    if (editingContact) {
+      await updateContact(contact);
+    } else {
+      await addContact(contact);
+    }   
+  }}
         />
       </View>
     </SafeAreaView>

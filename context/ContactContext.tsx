@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useReducer,
 } from 'react';
 
 import type { ReactNode } from 'react';
@@ -20,7 +21,12 @@ import {
   saveDeletedContactIds,
 } from '../utils/storage';
 import { Alert } from 'react-native';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  contactReducer,
+  initialContactState,
+  type ContactAction,
+} from './contactReducer';
 
 type ContactContextType = {
   contacts: Contact[];
@@ -37,6 +43,7 @@ type ContactContextType = {
   isLoadingMore: boolean;
   hasMore: boolean;
 
+  dispatch: React.Dispatch<ContactAction>;
   clearSearchResults: () => void;
   searchContacts: (query: string) => Promise<void>;
   loadMoreContacts: () => Promise<void>;
@@ -56,8 +63,7 @@ type Props = {
 
 export const ContactProvider = ({ children }: Props) => {
   const [apiContacts, setApiContacts] = useState<Contact[]>([]);
-  const [localContacts, setLocalContacts] = useState<Contact[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
+
   const [deletedContactIds, setDeletedContactIds] = useState<string[]>([]);
   const [jsonPlaceholderContacts, setJsonPlaceholderContacts] = useState<
     Contact[]
@@ -73,6 +79,14 @@ export const ContactProvider = ({ children }: Props) => {
 
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  //use reducer
+
+  const [contactState, dispatch] = useReducer(
+    contactReducer,
+    initialContactState,
+  );
+  const { localContacts, favorites } = contactState;
 
   // Stores how many API users have already been fetched
   const skipRef = useRef(0);
@@ -342,9 +356,13 @@ export const ContactProvider = ({ children }: Props) => {
             getLocalContacts(),
             getDeletedContactIds(),
           ]);
-
-        setFavorites(savedFavorites);
-        setLocalContacts(savedLocalContacts);
+        dispatch({
+          type: 'SET_INITIAL_DATA',
+          payload: {
+            favorites: savedFavorites,
+            localContacts: savedLocalContacts,
+          },
+        });
         setDeletedContactIds(savedDeletedIds);
 
         // Fetch data from both APIs
@@ -441,87 +459,92 @@ export const ContactProvider = ({ children }: Props) => {
     ).values(),
   ];
 
-  // Favorite functionality
-  const toggleFavorite = async (id: string) => {
-    const updatedFavorites = favorites.includes(id)
-      ? favorites.filter(item => item !== id)
-      : [...favorites, id];
-
-    setFavorites(updatedFavorites);
-
-    await saveFavorites(updatedFavorites);
-  };
-
-  // Add contact
-  const addContact = async (contact: Contact) => {
-    const updatedContacts = [
-      contact,
-      ...localContacts.filter(item => item.id !== contact.id),
-    ];
-
-    setLocalContacts(updatedContacts);
-
-    await saveLocalContacts(updatedContacts);
-  };
-
-  // Update contact
-  const updateContact = async (updatedContact: Contact) => {
-    const updatedContacts = localContacts.map(contact =>
-      contact.id === updatedContact.id ? updatedContact : contact,
-    );
-
-    setLocalContacts(updatedContacts);
-
-    await saveLocalContacts(updatedContacts);
-  };
-
   // Delete local or API contact
-  const deleteContact = async (contact: Contact) => {
+
+  // dispacth  delete
+  const deleteContact = async (contact: Contact): Promise<void> => {
     if (contact.id.startsWith('local_')) {
-      const updatedContacts = localContacts.filter(
-        item => item.id !== contact.id,
-      );
+      dispatch({
+        type: 'DELETE_CONTACT',
+        payload: contact.id,
+      });
 
-      setLocalContacts(updatedContacts);
-
-      await saveLocalContacts(updatedContacts);
-    } else {
-      const updatedDeletedIds = [
-        ...new Set([...deletedContactIds, contact.id]),
-      ];
-
-      setDeletedContactIds(updatedDeletedIds);
-
-      await saveDeletedContactIds(updatedDeletedIds);
+      return;
     }
 
-    // Remove deleted contact from favorites
-    const updatedFavorites = favorites.filter(id => id !== contact.id);
+    const updatedDeletedIds = [...new Set([...deletedContactIds, contact.id])];
 
-    setFavorites(updatedFavorites);
+    setDeletedContactIds(updatedDeletedIds);
 
-    await saveFavorites(updatedFavorites);
+    dispatch({
+      type: 'DELETE_CONTACT',
+      payload: contact.id,
+    });
+
+    await saveDeletedContactIds(updatedDeletedIds);
   };
+
+  //  Persist reducer state in AsyncStorage
+  useEffect(() => {
+    // Wait until saved data has been loaded initially
+    if (isLoading) {
+      return;
+    }
+
+    const saveData = async () => {
+      try {
+        await Promise.all([
+          saveFavorites(favorites),
+          saveLocalContacts(localContacts),
+        ]);
+      } catch (error) {
+        console.log('Error saving contact data:', error);
+      }
+    };
+
+    saveData();
+  }, [favorites, localContacts, isLoading]);
+
   // cleare search
   const clearSearchResults = () => {
     // Clear the current search query
     searchQueryRef.current = '';
-
     // Remove previous search results
     setSearchResults([]);
-
     // Reset search loading state
     setIsSearching(false);
-
     // Reset search pagination
     searchSkipRef.current = 0;
     searchHasMoreRef.current = true;
   };
-  // Clear favorites
-  const clearFavorites = async () => {
-    setFavorites([]);
 
-    await saveFavorites([]);
+  // dispacth Function ....
+
+  const toggleFavorite = async (id: string): Promise<void> => {
+    dispatch({
+      type: 'TOGGLE_FAVORITE',
+      payload: id,
+    });
+  };
+
+  const addContact = async (contact: Contact): Promise<void> => {
+    dispatch({
+      type: 'ADD_CONTACT',
+      payload: contact,
+    });
+  };
+
+  const updateContact = async (contact: Contact): Promise<void> => {
+    dispatch({
+      type: 'UPDATE_CONTACT',
+      payload: contact,
+    });
+  };
+
+  const clearFavorites = async (): Promise<void> => {
+    dispatch({
+      type: 'CLEAR_FAVORITES',
+    });
   };
 
   return (
@@ -548,13 +571,14 @@ export const ContactProvider = ({ children }: Props) => {
         deleteContact,
         clearFavorites,
         refreshContacts,
+        dispatch,
       }}
     >
       {children}
     </ContactContext.Provider>
   );
 };
-
+//custome contacts ...
 export const useContacts = () => {
   const context = useContext(ContactContext);
 

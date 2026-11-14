@@ -25,7 +25,7 @@ type Props = {
   contacts: Contact[];
   editingContact: Contact | null;
   onClose: () => void;
-  onSave: (contact: Contact) => Promise<void>;
+  onSave: (contact: Contact) => void;
 };
 
 const ContactForm = ({
