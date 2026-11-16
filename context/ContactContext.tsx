@@ -1,149 +1,177 @@
+
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
-  useReducer,
 } from 'react';
 
 import type { ReactNode } from 'react';
+import { Alert } from 'react-native';
 
 import type { Contact } from '../Components/ContactForm';
 
 import { getContacts, getUsers, searchUsers } from '../services/api';
-import {
-  getFavorites,
-  getLocalContacts,
-  getDeletedContactIds,
-  saveFavorites,
-  saveLocalContacts,
-  saveDeletedContactIds,
-} from '../utils/storage';
-import { Alert } from 'react-native';
 
-import {
-  contactReducer,
-  initialContactState,
-  type ContactAction,
-} from './contactReducer';
+import { getDeletedContactIds, saveDeletedContactIds } from '../utils/storage';
 
+// Number of contacts fetched in one API request
+const LIMIT = 10;
+
+// Context type
 type ContactContextType = {
   contacts: Contact[];
   apiContacts: Contact[];
-  localContacts: Contact[];
-  favorites: string[];
   deletedContactIds: string[];
+
   searchResults: Contact[];
   isSearching: boolean;
 
   isLoading: boolean;
   isRefreshing: boolean;
-  error: string;
   isLoadingMore: boolean;
   hasMore: boolean;
+  error: string;
 
-  dispatch: React.Dispatch<ContactAction>;
-  clearSearchResults: () => void;
   searchContacts: (query: string) => Promise<void>;
+  clearSearchResults: () => void;
   loadMoreContacts: () => Promise<void>;
-  toggleFavorite: (id: string) => Promise<void>;
-  addContact: (contact: Contact) => Promise<void>;
-  updateContact: (contact: Contact) => Promise<void>;
-  deleteContact: (contact: Contact) => Promise<void>;
-  clearFavorites: () => Promise<void>;
   refreshContacts: () => Promise<void>;
+  deleteContact: (contact: Contact) => Promise<void>;
 };
 
+// Create Context
 const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
 type Props = {
   children: ReactNode;
 };
 
+// Contact Provider
 export const ContactProvider = ({ children }: Props) => {
+  // API contacts from DummyJSON
   const [apiContacts, setApiContacts] = useState<Contact[]>([]);
 
-  const [deletedContactIds, setDeletedContactIds] = useState<string[]>([]);
+  // API contacts from JSONPlaceholder
   const [jsonPlaceholderContacts, setJsonPlaceholderContacts] = useState<
     Contact[]
   >([]);
 
+  // IDs of API contacts deleted by the user
+  const [deletedContactIds, setDeletedContactIds] = useState<string[]>([]);
+
+  // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState('');
-
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // Error state
+  const [error, setError] = useState('');
+
+  // Pagination state
   const [hasMore, setHasMore] = useState(true);
 
+  // Search state
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  //use reducer
-
-  const [contactState, dispatch] = useReducer(
-    contactReducer,
-    initialContactState,
-  );
-  const { localContacts, favorites } = contactState;
-
-  // Stores how many API users have already been fetched
+  // Keep track of pagination
   const skipRef = useRef(0);
-
-  // Prevents multiple API requests at the same time
-  const requestInProgressRef = useRef(false);
-
-  // Keeps the latest hasMore value available to callbacks
   const hasMoreRef = useRef(true);
 
-  const LIMIT = 10;
+  // Prevent duplicate API requests
+  const requestInProgressRef = useRef(false);
 
-  // Current search query
+  // Search query and pagination
   const searchQueryRef = useRef('');
-
-  // Search pagination
   const searchSkipRef = useRef(0);
   const searchHasMoreRef = useRef(true);
-
-  // Prevent duplicate search pagination requests
   const searchRequestRef = useRef(false);
 
-  // Fetch API contacts from user end point api
-
-  const fetchContactsUsersApi = async () => {
-    try {
-      const response = await getContacts();
-
-      const formattedContacts: Contact[] = response.map(user => ({
-        id: `users_${user.id}`,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        image: null,
-      }));
-
-      setJsonPlaceholderContacts(formattedContacts);
-    } catch (error) {
-      console.log('JSONPlaceholder API error:', error);
-      throw error;
-    }
+  // Convert DummyJSON users into Contact objects
+  const formatDummyJSONContacts = (users: any[]): Contact[] => {
+    return users.map(user => ({
+      id: String(user.id),
+      name: `${user.firstName} ${user.lastName}`,
+      phone: user.phone,
+      email: user.email,
+      image: user.image,
+    }));
   };
 
-  // search function
-  const searchContacts = async (query: string) => {
-    // const searchText = query.trim();
-    console.log('queryhuhcjd cndjc dcndncd cdcd cdncndcdc d', query);
-    const searchText = query.trim();
-    console.log('Search Text cndjc dcndncd cdcd cdncndcdc d', searchText);
+  // Convert JSONPlaceholder users into Contact objects
+  const formatJSONPlaceholderContacts = (users: any[]): Contact[] => {
+    return users.map(user => ({
+      id: `users_${user.id}`,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      image: null,
+    }));
+  };
 
+  // Fetch first page of DummyJSON contacts
+  const fetchApiContacts = useCallback(async () => {
+    const response = await getUsers(LIMIT, 0);
+
+    const formattedContacts = formatDummyJSONContacts(response.users);
+
+    setApiContacts(formattedContacts);
+
+    skipRef.current = response.users.length;
+
+    const moreAvailable = skipRef.current < response.total;
+
+    setHasMore(moreAvailable);
+    hasMoreRef.current = moreAvailable;
+  }, []);
+
+  // Fetch JSONPlaceholder contacts
+  const fetchJSONPlaceholderContacts = useCallback(async () => {
+    const response = await getContacts();
+
+    const formattedContacts = formatJSONPlaceholderContacts(response);
+
+    setJsonPlaceholderContacts(formattedContacts);
+  }, []);
+
+  // Initialize Context data
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Restore deleted API contact IDs
+        const savedDeletedIds = await getDeletedContactIds();
+
+        setDeletedContactIds(savedDeletedIds);
+
+        // Fetch data from both APIs
+        await Promise.all([fetchApiContacts(), fetchJSONPlaceholderContacts()]);
+      } catch (error) {
+        console.log('Initialization error:', error);
+        setError('Unable to load contacts. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeApp();
+  }, [fetchApiContacts, fetchJSONPlaceholderContacts]);
+
+  // Search contacts
+  const searchContacts = useCallback(async (query: string) => {
+    const searchText = query.trim();
+
+    // Save the latest search query
     searchQueryRef.current = searchText;
 
     // Reset search pagination
     searchSkipRef.current = 0;
     searchHasMoreRef.current = true;
 
-    // Remove previous search results
+    // Clear previous results
     setSearchResults([]);
 
     if (searchText === '') {
@@ -157,45 +185,10 @@ export const ContactProvider = ({ children }: Props) => {
     try {
       const response = await searchUsers(searchText, LIMIT, 0);
 
-      // Ignore results from an older search query
+      // Ignore results from an older search
       if (searchQueryRef.current !== searchText) {
         return;
       }
-      const mappedContacts: Contact[] = response.users.map(user => ({
-        id: String(user.id),
-        name: `${user.firstName} ${user.lastName}`,
-        phone: user.phone,
-        email: user.email,
-        image: user.image,
-      }));
-
-      setSearchResults(mappedContacts);
-
-      searchSkipRef.current = response.skip + response.users.length;
-
-      searchHasMoreRef.current = searchSkipRef.current < response.total;
-    } catch (error) {
-      if (searchQueryRef.current === searchText) {
-        console.log('Search failed:', error);
-        setError('Unable to search contacts. Please try again.');
-      }
-    } finally {
-      if (searchQueryRef.current === searchText) {
-        setIsSearching(false);
-      }
-    }
-  };
-
-  // Fetch first 10 users from DummyJSON
-  const fetchApiContacts = async () => {
-    if (requestInProgressRef.current) {
-      return;
-    }
-
-    requestInProgressRef.current = true;
-
-    try {
-      const response = await getUsers(LIMIT, 0);
 
       const formattedContacts: Contact[] = response.users.map(user => ({
         id: String(user.id),
@@ -205,37 +198,40 @@ export const ContactProvider = ({ children }: Props) => {
         image: user.image,
       }));
 
-      // Replace API contacts with the first page
-      setApiContacts(formattedContacts);
+      setSearchResults(formattedContacts);
 
-      // Update pagination information
-      skipRef.current = response.users.length;
+      searchSkipRef.current = response.skip + response.users.length;
 
-      const moreAvailable = skipRef.current < response.total;
-
-      setHasMore(moreAvailable);
-      hasMoreRef.current = moreAvailable;
+      searchHasMoreRef.current = searchSkipRef.current < response.total;
     } catch (error) {
-      console.log('API Error:', error);
-      throw error;
+      if (searchQueryRef.current === searchText) {
+        console.log('Search error:', error);
+        setError('Unable to search contacts. Please try again.');
+      }
     } finally {
-      requestInProgressRef.current = false;
+      if (searchQueryRef.current === searchText) {
+        setIsSearching(false);
+      }
     }
-  };
-  const visibleJsonPlaceholderContacts = jsonPlaceholderContacts.filter(
-    contact => !deletedContactIds.includes(contact.id),
-  );
+  }, []);
 
-  // Fetch next 10 users when FlatList reaches the bottom
+  // Clear search results
+  const clearSearchResults = useCallback(() => {
+    searchQueryRef.current = '';
 
-  const loadMoreContacts = async () => {
-    // Check whether the user is searching
+    setSearchResults([]);
+    setIsSearching(false);
+
+    searchSkipRef.current = 0;
+    searchHasMoreRef.current = true;
+  }, []);
+
+  // Load more contacts
+  const loadMoreContacts = useCallback(async () => {
     const currentQuery = searchQueryRef.current;
 
     // SEARCH PAGINATION
-
     if (currentQuery !== '') {
-      // Prevent duplicate search requests
       if (searchRequestRef.current || !searchHasMoreRef.current) {
         return;
       }
@@ -244,19 +240,17 @@ export const ContactProvider = ({ children }: Props) => {
       setIsLoadingMore(true);
 
       try {
-        // Fetch the next page of search results
         const response = await searchUsers(
           currentQuery,
           LIMIT,
           searchSkipRef.current,
         );
 
-        // Ignore response if the search query has changed
+        // Ignore outdated search response
         if (searchQueryRef.current !== currentQuery) {
           return;
         }
 
-        // Convert API users into Contact objects
         const formattedContacts: Contact[] = response.users.map(user => ({
           id: String(user.id),
           name: `${user.firstName} ${user.lastName}`,
@@ -265,7 +259,7 @@ export const ContactProvider = ({ children }: Props) => {
           image: user.image,
         }));
 
-        // Append new results and avoid duplicate IDs
+        // Avoid duplicate contacts
         setSearchResults(previousContacts => {
           const existingIds = new Set(
             previousContacts.map(contact => contact.id),
@@ -278,10 +272,8 @@ export const ContactProvider = ({ children }: Props) => {
           return [...previousContacts, ...newContacts];
         });
 
-        // Update search pagination
         searchSkipRef.current = response.skip + response.users.length;
 
-        // Check whether more search results are available
         searchHasMoreRef.current = searchSkipRef.current < response.total;
       } catch (error) {
         console.log('Search pagination error:', error);
@@ -294,8 +286,6 @@ export const ContactProvider = ({ children }: Props) => {
     }
 
     // NORMAL CONTACT PAGINATION
-
-    // Prevent duplicate normal requests
     if (requestInProgressRef.current || !hasMoreRef.current || isLoading) {
       return;
     }
@@ -304,19 +294,11 @@ export const ContactProvider = ({ children }: Props) => {
     setIsLoadingMore(true);
 
     try {
-      // Fetch the next page of normal contacts
       const response = await getUsers(LIMIT, skipRef.current);
 
-      // Convert API users into Contact objects
-      const formattedContacts: Contact[] = response.users.map(user => ({
-        id: String(user.id),
-        name: `${user.firstName} ${user.lastName}`,
-        phone: user.phone,
-        email: user.email,
-        image: user.image,
-      }));
+      const formattedContacts = formatDummyJSONContacts(response.users);
 
-      // Append new contacts and avoid duplicate IDs
+      // Append contacts without duplicates
       setApiContacts(previousContacts => {
         const existingIds = new Set(
           previousContacts.map(contact => contact.id),
@@ -329,10 +311,9 @@ export const ContactProvider = ({ children }: Props) => {
         return [...previousContacts, ...newContacts];
       });
 
-      // Update normal pagination
+      // Update pagination
       skipRef.current += response.users.length;
 
-      // Check whether more contacts are available
       const moreAvailable = skipRef.current < response.total;
 
       setHasMore(moreAvailable);
@@ -340,54 +321,19 @@ export const ContactProvider = ({ children }: Props) => {
     } catch (error) {
       console.log('Load more contacts error:', error);
     } finally {
-      setIsLoadingMore(false);
       requestInProgressRef.current = false;
+      setIsLoadingMore(false);
     }
-  };
+  }, [isLoading]);
 
-  // Initialize application
-
-  useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        const [savedFavorites, savedLocalContacts, savedDeletedIds] =
-          await Promise.all([
-            getFavorites(),
-            getLocalContacts(),
-            getDeletedContactIds(),
-          ]);
-        dispatch({
-          type: 'SET_INITIAL_DATA',
-          payload: {
-            favorites: savedFavorites,
-            localContacts: savedLocalContacts,
-          },
-        });
-        setDeletedContactIds(savedDeletedIds);
-
-        // Fetch data from both APIs
-        await Promise.all([fetchApiContacts(), fetchContactsUsersApi()]);
-      } catch (error) {
-        console.log('Initialization error:', error);
-        setError('Unable to initialize contacts.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeApp();
-  }, []);
-
-  // Pull-to-refresh: fetch the first page again
-
-  const refreshContacts = async () => {
+  // Pull to refresh
+  const refreshContacts = useCallback(async () => {
     if (requestInProgressRef.current) {
       return;
     }
 
     requestInProgressRef.current = true;
     setIsRefreshing(true);
-    // setError('');
 
     try {
       const [dummyResponse, jsonResponse] = await Promise.all([
@@ -395,31 +341,17 @@ export const ContactProvider = ({ children }: Props) => {
         getContacts(),
       ]);
 
-      // Format DummyJSON contacts
-      const formattedDummyContacts: Contact[] = dummyResponse.users.map(
-        user => ({
-          id: String(user.id),
-          name: `${user.firstName} ${user.lastName}`,
-          phone: user.phone,
-          email: user.email,
-          image: user.image,
-        }),
+      // Update DummyJSON contacts
+      const formattedDummyContacts = formatDummyJSONContacts(
+        dummyResponse.users,
       );
 
-      // Format JSONPlaceholder contacts
-      const formattedJsonContacts: Contact[] = jsonResponse.map(user => ({
-        id: `users_${user.id}`,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        image: null,
-      }));
+      // Update JSONPlaceholder contacts
+      const formattedJsonContacts = formatJSONPlaceholderContacts(jsonResponse);
 
-      // Replace old API data
       setApiContacts(formattedDummyContacts);
       setJsonPlaceholderContacts(formattedJsonContacts);
-      // Clear error only after both APIs succeed
-      setError('');
+
       // Reset pagination
       skipRef.current = dummyResponse.users.length;
 
@@ -427,6 +359,8 @@ export const ContactProvider = ({ children }: Props) => {
 
       setHasMore(moreAvailable);
       hasMoreRef.current = moreAvailable;
+
+      setError('');
     } catch (error) {
       console.log('Refresh error:', error);
 
@@ -442,143 +376,82 @@ export const ContactProvider = ({ children }: Props) => {
       requestInProgressRef.current = false;
       setIsRefreshing(false);
     }
-  };
+  }, []);
 
-  // Display API and local contacts together
-  const visibleApiContacts = apiContacts.filter(
-    contact => !deletedContactIds.includes(contact.id),
+  // Delete or hide an API contact
+  const deleteContact = useCallback(
+    async (contact: Contact) => {
+      const updatedDeletedIds = [
+        ...new Set([...deletedContactIds, contact.id]),
+      ];
+
+      setDeletedContactIds(updatedDeletedIds);
+
+      try {
+        await saveDeletedContactIds(updatedDeletedIds);
+      } catch (error) {
+        console.log('Error saving deleted contact IDs:', error);
+      }
+    },
+    [deletedContactIds],
   );
 
-  const contacts = [
-    ...new Map(
-      [
-        ...localContacts,
-        ...visibleJsonPlaceholderContacts,
-        ...visibleApiContacts,
-      ].map(contact => [contact.id, contact]),
-    ).values(),
-  ];
+  // Remove deleted contacts from API results
+  const visibleApiContacts = useMemo(() => {
+    return apiContacts.filter(
+      contact => !deletedContactIds.includes(contact.id),
+    );
+  }, [apiContacts, deletedContactIds]);
 
-  // Delete local or API contact
+  const visibleJSONPlaceholderContacts = useMemo(() => {
+    return jsonPlaceholderContacts.filter(
+      contact => !deletedContactIds.includes(contact.id),
+    );
+  }, [jsonPlaceholderContacts, deletedContactIds]);
 
-  // dispacth  delete
-  const deleteContact = async (contact: Contact): Promise<void> => {
-    if (contact.id.startsWith('local_')) {
-      dispatch({
-        type: 'DELETE_CONTACT',
-        payload: contact.id,
-      });
+  // Combine API contacts and avoid duplicate IDs
+  const contacts = useMemo(() => {
+    const combinedContacts = [
+      ...visibleJSONPlaceholderContacts,
+      ...visibleApiContacts,
+    ];
 
-      return;
-    }
-
-    const updatedDeletedIds = [...new Set([...deletedContactIds, contact.id])];
-
-    setDeletedContactIds(updatedDeletedIds);
-
-    dispatch({
-      type: 'DELETE_CONTACT',
-      payload: contact.id,
-    });
-
-    await saveDeletedContactIds(updatedDeletedIds);
-  };
-
-  //  Persist reducer state in AsyncStorage
-  useEffect(() => {
-    // Wait until saved data has been loaded initially
-    if (isLoading) {
-      return;
-    }
-
-    const saveData = async () => {
-      try {
-        await Promise.all([
-          saveFavorites(favorites),
-          saveLocalContacts(localContacts),
-        ]);
-      } catch (error) {
-        console.log('Error saving contact data:', error);
-      }
-    };
-
-    saveData();
-  }, [favorites, localContacts, isLoading]);
-
-  // cleare search
-  const clearSearchResults = () => {
-    // Clear the current search query
-    searchQueryRef.current = '';
-    // Remove previous search results
-    setSearchResults([]);
-    // Reset search loading state
-    setIsSearching(false);
-    // Reset search pagination
-    searchSkipRef.current = 0;
-    searchHasMoreRef.current = true;
-  };
-
-  // dispacth Function ....
-
-  const toggleFavorite = async (id: string): Promise<void> => {
-    dispatch({
-      type: 'TOGGLE_FAVORITE',
-      payload: id,
-    });
-  };
-
-  const addContact = async (contact: Contact): Promise<void> => {
-    dispatch({
-      type: 'ADD_CONTACT',
-      payload: contact,
-    });
-  };
-
-  const updateContact = async (contact: Contact): Promise<void> => {
-    dispatch({
-      type: 'UPDATE_CONTACT',
-      payload: contact,
-    });
-  };
-
-  const clearFavorites = async (): Promise<void> => {
-    dispatch({
-      type: 'CLEAR_FAVORITES',
-    });
-  };
+    return [
+      ...new Map(
+        combinedContacts.map(contact => [contact.id, contact]),
+      ).values(),
+    ];
+  }, [visibleJSONPlaceholderContacts, visibleApiContacts]);
 
   return (
     <ContactContext.Provider
       value={{
         contacts,
-        apiContacts,
-        localContacts,
-        favorites,
+        apiContacts: visibleApiContacts,
         deletedContactIds,
-        isLoading,
-        isRefreshing,
-        error,
-        isLoadingMore,
-        hasMore,
+
         searchResults,
         isSearching,
+
+        isLoading,
+        isRefreshing,
+        isLoadingMore,
+        hasMore,
+        error,
+
         searchContacts,
         clearSearchResults,
         loadMoreContacts,
-        toggleFavorite,
-        addContact,
-        updateContact,
-        deleteContact,
-        clearFavorites,
         refreshContacts,
-        dispatch,
+        deleteContact,
       }}
     >
       {children}
     </ContactContext.Provider>
   );
 };
-//custome contacts ...
+
+// Custom hook
 export const useContacts = () => {
   const context = useContext(ContactContext);
 

@@ -1,12 +1,10 @@
 import React from 'react';
 
 import {
-  Alert,
-  Linking,
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -18,7 +16,14 @@ import type { RootStackParamList } from '../navigation/types';
 
 import { useContacts } from '../context/ContactContext';
 
+import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
+
+import { toggleFavorite } from '../redux/contactSlice';
+
+import type { Contact } from '../Components/ContactForm';
+
 import CustomButton from '../Components/CustomButtons';
+
 import {
   copyContact,
   openDialer,
@@ -32,14 +37,67 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ContactDetails'>;
 const ContactDetailsScreen = ({ route, navigation }: Props) => {
   const { contactId } = route.params;
 
-  const { contacts, favorites, isLoading } = useContacts();
+  // Get API contacts and loading state from Context
+  const { contacts, isLoading } = useContacts();
+
+  // Redux dispatch
+  const dispatch = useAppDispatch();
+
+  // Get locally added contacts from Redux
+  const localContacts = useAppSelector(state => state.contacts.localContacts);
+
+  // Get favorite IDs from Redux
+  const favorites = useAppSelector(state => state.contacts.favorites);
+
+  // Remove local contacts from API contacts
+  // because local contacts are already coming from Redux
+  const apiContacts = contacts.filter(
+    contact => !contact.id.startsWith('local_'),
+  );
+
+  // Combine local and API contacts
+  const allContacts: Contact[] = [...localContacts, ...apiContacts];
 
   // Find selected contact
-  const contact = contacts.find(item => item.id === contactId);
+  const contact = allContacts.find(item => item.id === contactId);
 
-  // Detect current platform
+  // Check favorite status
+  const isFavorite = contact ? favorites.includes(contact.id) : false;
+
+  // Detect platform
   const isAndroid = Platform.OS === 'android';
   const isIOS = Platform.OS === 'ios';
+
+  // Generate initials from contact name
+  const getInitials = (name: string) => {
+    const words = name.trim().split(/\s+/);
+
+    if (words.length === 1) {
+      return words[0].substring(0, 2).toUpperCase();
+    }
+
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  };
+
+  // Toggle favorite using Redux
+  const handleToggleFavorite = () => {
+    if (!contact) {
+      return;
+    }
+
+    dispatch(toggleFavorite(contact.id));
+  };
+
+  // Show loading indicator while API contacts are loading
+  if (isLoading && !contact) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2196F3" />
+
+        <Text style={styles.loadingText}>Loading contact...</Text>
+      </View>
+    );
+  }
 
   // Handle contact not found
   if (!contact) {
@@ -48,6 +106,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
         style={[
           styles.container,
           isAndroid ? styles.androidContainer : styles.iosContainer,
+          styles.notFoundContainer,
         ]}
       >
         <Text style={styles.heading}>Contact not found!</Text>
@@ -61,20 +120,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
       </View>
     );
   }
-
-  // Check favorite status
-  const isFavorite = favorites.includes(contact.id);
-
-  // Generate initials
-  const getInitials = (name: string) => {
-    const words = name.trim().split(/\s+/);
-
-    if (words.length === 1) {
-      return words[0].substring(0, 2).toUpperCase();
-    }
-
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  };
 
   return (
     <ScrollView
@@ -96,23 +141,40 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
       {/* Contact Information */}
       <View style={styles.detailsCard}>
         <Text style={styles.label}>Name</Text>
+
         <Text style={styles.value}>{contact.name}</Text>
 
         <Text style={styles.label}>Phone Number</Text>
+
         <Text style={styles.value}>{contact.phone}</Text>
 
         <Text style={styles.label}>Email</Text>
+
         <Text style={styles.value}>
           {contact.email || 'Email not available'}
         </Text>
 
         <Text style={styles.label}>Favorite Status</Text>
+
         <Text style={styles.value}>{isFavorite ? 'Yes ❤️' : 'No'}</Text>
       </View>
 
+      {/* Favorite / Unfavorite Button */}
+      <Pressable
+        style={[
+          styles.favoriteButton,
+          isFavorite ? styles.unfavoriteButton : styles.addFavoriteButton,
+        ]}
+        onPress={handleToggleFavorite}
+      >
+        <Text style={styles.buttonText}>
+          {isFavorite ? '❤️ Remove from Favorites' : '♡ Add to Favorites'}
+        </Text>
+      </Pressable>
+
       {/* First Row */}
       <View style={styles.buttonRow}>
-        {/* Call button Contact  */}
+        {/* Call Contact */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Call Contact"
@@ -121,6 +183,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
             loading={isLoading}
           />
         </View>
+
         {/* SMS Button */}
         <View style={styles.buttonItem}>
           <CustomButton
@@ -144,7 +207,8 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
             disabled={!contact.email}
           />
         </View>
-        {/* Share Contact Button  */}
+
+        {/* Share Contact Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Share Contact"
@@ -156,8 +220,10 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
           />
         </View>
       </View>
+
+      {/* Third Row */}
       <View style={styles.buttonRow}>
-        {/* copy Contact Button */}
+        {/* Copy Contact Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Copy Contact"
@@ -190,6 +256,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+
+  loadingText: {
+    fontSize: 16,
+    color: '#555',
+    marginTop: 12,
+  },
+
+  notFoundContainer: {
+    justifyContent: 'center',
+  },
+
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -201,6 +285,7 @@ const styles = StyleSheet.create({
   buttonItem: {
     flex: 1,
   },
+
   androidContainer: {
     paddingHorizontal: 16,
   },
@@ -259,6 +344,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#222',
     marginTop: 5,
+  },
+
+  favoriteButton: {
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+
+  addFavoriteButton: {
+    backgroundColor: '#650B29',
+  },
+
+  unfavoriteButton: {
+    backgroundColor: '#555555',
   },
 
   backButton: {

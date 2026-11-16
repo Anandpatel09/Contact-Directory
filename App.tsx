@@ -1,18 +1,26 @@
 import React from 'react';
 
+import { Provider } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 
-import AppNavigator from './navigation/AppNavigator';
+import { store } from './redux/store';
+import ReduxPersistence from './redux/ReduxPersistence';
 
 import { ContactProvider } from './context/ContactContext';
 
+import AppNavigator from './navigation/AppNavigator';
+
 const App = () => {
   return (
-    <ContactProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
-    </ContactProvider>
+    <Provider store={store}>
+      <ReduxPersistence>
+        <ContactProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+        </ContactProvider>
+      </ReduxPersistence>
+    </Provider>
   );
 };
 

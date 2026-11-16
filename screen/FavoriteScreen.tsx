@@ -8,24 +8,57 @@ import {
   Text,
   View,
 } from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../navigation/types';
 
 import ContactCard from '../Components/ContactCard';
 
+import type { Contact } from '../Components/ContactForm';
+
 import { useContacts } from '../context/ContactContext';
+
+import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
+
+import { toggleFavorite, clearFavorites } from '../redux/contactSlice';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Favorites'>;
 
 const FavoritesScreen = ({ navigation }: Props) => {
-  const { contacts, favorites, dispatch } = useContacts();
+  // Get API contacts from Context
+  const { contacts } = useContacts();
 
-  const favoriteContacts = contacts.filter(contact =>
+  // Get Redux dispatch
+  const dispatch = useAppDispatch();
+
+  // Get locally added contacts from Redux
+  const localContacts = useAppSelector(state => state.contacts.localContacts);
+
+  // Get favorite IDs from Redux
+  const favorites = useAppSelector(state => state.contacts.favorites);
+
+  // Remove local contacts from Context because they are already stored in Redux
+  const apiContacts = contacts.filter(
+    contact => !contact.id.startsWith('local_'),
+  );
+
+  // Combine local contacts and API contacts
+  const allContacts: Contact[] = [...localContacts, ...apiContacts];
+
+  // Get only favorite contacts
+  const favoriteContacts = allContacts.filter(contact =>
     favorites.includes(contact.id),
   );
 
+  // Remove a contact from favorites
+  const handleToggleFavorite = (id: string) => {
+    dispatch(toggleFavorite(id));
+  };
+
+  // Clear all favorites
   const handleClearFavorites = () => {
     Alert.alert(
       'Clear Favorites',
@@ -38,15 +71,8 @@ const FavoritesScreen = ({ navigation }: Props) => {
         {
           text: 'Clear All',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              // await clearFavorites();
-              dispatch({
-                type: 'CLEAR_FAVORITES',
-              });
-            } catch (error) {
-              Alert.alert('Error', 'Unable to clear favorites.');
-            }
+          onPress: () => {
+            dispatch(clearFavorites());
           },
         },
       ],
@@ -56,12 +82,15 @@ const FavoritesScreen = ({ navigation }: Props) => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.container}>
-        <Text style={styles.title}>Favorite Contacts </Text>
+        {/* Screen Heading */}
+        <Text style={styles.title}>Favorite Contacts</Text>
 
+        {/* Total Favorites */}
         <Text style={styles.count}>
           Total Favorites: {favoriteContacts.length}
         </Text>
 
+        {/* Clear Favorites Button */}
         <Pressable
           style={[
             styles.clearButton,
@@ -73,34 +102,39 @@ const FavoritesScreen = ({ navigation }: Props) => {
           <Text style={styles.buttonText}>Clear Favorites</Text>
         </Pressable>
 
+        {/* Favorite Contacts List */}
         <FlatList
           data={favoriteContacts}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          // Empty List Message
           ListEmptyComponent={
             <Text style={styles.emptyText}>No favorite contacts found!</Text>
           }
+          // Render Favorite Contact
           renderItem={({ item }) => (
             <ContactCard
               id={item.id}
               name={item.name}
               phone={item.phone}
               isFavorite={true}
+              // Open Contact Details
               onPress={() =>
                 navigation.navigate('ContactDetails', {
                   contactId: item.id,
                 })
               }
-              onFavoriteButton={() => {
-                dispatch({
-                  type: 'TOGGLE_FAVORITE',
-                  payload: item.id,
-                });
-              }}
+              // Remove from Favorites
+              onFavoriteButton={() => handleToggleFavorite(item.id)}
+
+              // Edit is not enabled on Favorites screen
+              // Delete is not enabled on Favorites screen
             />
           )}
         />
 
+        {/* Back Button */}
         <Pressable
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -114,6 +148,7 @@ const FavoritesScreen = ({ navigation }: Props) => {
 
 export default FavoritesScreen;
 
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -132,6 +167,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 12,
     marginBottom: 12,
+    color: '#222',
   },
 
   clearButton: {
@@ -168,6 +204,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
 });

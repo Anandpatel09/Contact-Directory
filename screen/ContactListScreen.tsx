@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 
 import {
@@ -25,12 +26,27 @@ import type { Contact } from '../Components/ContactForm';
 
 import { useContacts } from '../context/ContactContext';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ContactList'>;
+import {
+  useAppDispatch,
+  useAppSelector,
+} from '../hooks/reduxHooks';
+
+import {
+  addContact as addContactAction,
+  deleteContact as deleteContactAction,
+  toggleFavorite as toggleFavoriteAction,
+  updateContact as updateContactAction,
+} from '../redux/contactSlice';
+
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'ContactList'
+>;
 
 const ContactListScreen = ({ navigation }: Props) => {
+  // Context: API-related data and functionality
   const {
     contacts,
-    favorites,
     isLoading,
     isRefreshing,
     isLoadingMore,
@@ -40,22 +56,46 @@ const ContactListScreen = ({ navigation }: Props) => {
     searchResults,
     searchContacts,
     clearSearchResults,
-    toggleFavorite,
-    addContact,
-    updateContact,
-    deleteContact,
+    deleteContact: deleteApiContact,
     refreshContacts,
     loadMoreContacts,
-    dispatch,
   } = useContacts();
+
+  // Redux dispatch
+  const dispatch = useAppDispatch();
+
+  // Get local contacts from Redux
+  const localContacts = useAppSelector(
+    state => state.contacts.localContacts,
+  );
+
+  // Get favorite IDs from Redux
+  const favorites = useAppSelector(
+    state => state.contacts.favorites,
+  );
+
+  // Remove locally added contacts from Context.
+  // Redux is the source of truth for local contacts.
+  const apiContacts = contacts.filter(
+    contact => !contact.id.startsWith('local_'),
+  );
+
+  // Combine Redux local contacts and API contacts
+  const allContacts: Contact[] = [
+    ...localContacts,
+    ...apiContacts,
+  ];
+
+  // Search states
   const [search, setSearch] = useState('');
-
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Add/Edit form states
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingContact, setEditingContact] =
+    useState<Contact | null>(null);
 
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
-
-  //Debounce the users input
+  // Debounce the user's input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -66,7 +106,7 @@ const ContactListScreen = ({ navigation }: Props) => {
     };
   }, [search]);
 
-  //Search the API after the debounce
+  // Search the API after the debounce delay
   useEffect(() => {
     if (debouncedSearch === '') {
       clearSearchResults();
@@ -76,37 +116,46 @@ const ContactListScreen = ({ navigation }: Props) => {
     searchContacts(debouncedSearch);
   }, [debouncedSearch]);
 
-  // Search already loaded and locally added contacts
-  const localSearchResults = contacts.filter(contact => {
+  // Search locally available contacts
+  const localSearchResults = allContacts.filter(contact => {
     const query = debouncedSearch.toLowerCase();
 
     if (query === '') {
       return true;
     }
 
-    const nameMatch = contact.name.toLowerCase().includes(query);
+    // Search by name
+    const nameMatch = contact.name
+      .toLowerCase()
+      .includes(query);
 
-    const emailMatch = contact.email.toLowerCase().includes(query);
+    // Search by email
+    const emailMatch = contact.email
+      .toLowerCase()
+      .includes(query);
 
+    // Search by phone number
     const phoneQuery = debouncedSearch.replace(/\D/g, '');
+
     const contactPhone = contact.phone.replace(/\D/g, '');
 
     const phoneMatch =
-      phoneQuery.length > 0 && contactPhone.includes(phoneQuery);
+      phoneQuery.length > 0 &&
+      contactPhone.includes(phoneQuery);
 
     return nameMatch || emailMatch || phoneMatch;
   });
 
-  //Combine local results and API search results
+  // Combine local search results and API search results
+  // Map prevents duplicate contacts based on ID
   const displayedContacts =
     debouncedSearch === ''
-      ? contacts
+      ? allContacts
       : [
           ...new Map(
-            [...localSearchResults, ...searchResults].map(contact => [
-              contact.id,
-              contact,
-            ]),
+            [...localSearchResults, ...searchResults].map(
+              contact => [contact.id, contact],
+            ),
           ).values(),
         ];
 
@@ -116,12 +165,13 @@ const ContactListScreen = ({ navigation }: Props) => {
     setModalVisible(true);
   };
 
-  //contact to be displayed
-
-  // Open edit form
+  // Open edit contact form
   const handleEditContact = (contact: Contact) => {
     if (!contact.id.startsWith('local_')) {
-      Alert.alert('Edit Contact', 'Only locally added contacts can be edited.');
+      Alert.alert(
+        'Edit Contact',
+        'Only locally added contacts can be edited.',
+      );
 
       return;
     }
@@ -147,20 +197,27 @@ const ContactListScreen = ({ navigation }: Props) => {
           onPress: async () => {
             try {
               if (contact.id.startsWith('local_')) {
-                dispatch({
-                  type: 'DELETE_CONTACT',
-                  payload: contact.id,
-                });
+                // Delete local contact using Redux
+                dispatch(deleteContactAction(contact.id));
               } else {
-                await deleteContact(contact);
+                // Delete API contact using Context
+                await deleteApiContact(contact);
               }
             } catch (deleteError) {
-              Alert.alert('Error', 'Unable to save the deleted contact.');
+              Alert.alert(
+                'Error',
+                'Unable to delete the contact.',
+              );
             }
           },
         },
       ],
     );
+  };
+
+  // Toggle favorite using Redux
+  const handleToggleFavorite = (id: string) => {
+    dispatch(toggleFavoriteAction(id));
   };
 
   // Close add/edit form
@@ -169,31 +226,50 @@ const ContactListScreen = ({ navigation }: Props) => {
     setEditingContact(null);
   };
 
+  // Save contact using Redux
+  const handleSaveContact = async (contact: Contact) => {
+    if (editingContact) {
+      // Update existing local contact
+      dispatch(updateContactAction(contact));
+    } else {
+      // Add new local contact
+      dispatch(addContactAction(contact));
+    }
+  };
+
   // Initial loading indicator
-  if (isLoading) {
+  // Show it only when there are no local contacts to display
+  if (isLoading && allContacts.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
+        <ActivityIndicator
+          size="large"
+          color="#2196F3"
+        />
 
-        <Text style={styles.loadingText}>Loading contacts...</Text>
+        <Text style={styles.loadingText}>
+          Loading contacts...
+        </Text>
       </View>
     );
   }
-  //handle favorite
-  const handleToggleFavorite = (id: string) => {
-    dispatch({
-      type: 'TOGGLE_FAVORITE',
-      payload: id,
-    });
-  };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={['top']}
+    >
       <View style={styles.container}>
-        <Text style={styles.title}>Contact Directory</Text>
+        {/* Screen Heading */}
+        <Text style={styles.title}>
+          Contact Directory
+        </Text>
 
-        <Text style={styles.subtitle}>All your contacts in one place</Text>
+        <Text style={styles.subtitle}>
+          All your contacts in one place
+        </Text>
 
+        {/* Total favorites from Redux */}
         <Text style={styles.favoriteCount}>
           Total Favorites: {favorites.length}
         </Text>
@@ -201,15 +277,20 @@ const ContactListScreen = ({ navigation }: Props) => {
         {/* Search input */}
         <TextInput
           style={styles.searchInput}
-          placeholder="Search by name, phone"
+          placeholder="Search by name, phone or email"
           placeholderTextColor="#777777"
           value={search}
           onChangeText={setSearch}
         />
 
         {/* Add Contact button */}
-        <Pressable style={styles.addButton} onPress={handleAddContact}>
-          <Text style={styles.buttonText}>+ Add Contact</Text>
+        <Pressable
+          style={styles.addButton}
+          onPress={handleAddContact}
+        >
+          <Text style={styles.buttonText}>
+            + Add Contact
+          </Text>
         </Pressable>
 
         {/* Favorites button */}
@@ -217,16 +298,25 @@ const ContactListScreen = ({ navigation }: Props) => {
           style={styles.favoritesButton}
           onPress={() => navigation.navigate('Favorites')}
         >
-          <Text style={styles.buttonText}>View Favorites</Text>
+          <Text style={styles.buttonText}>
+            View Favorites
+          </Text>
         </Pressable>
 
         {/* API error */}
         {error !== '' && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
 
-            <Pressable style={styles.retryButton} onPress={refreshContacts}>
-              <Text style={styles.buttonText}>Retry</Text>
+            <Pressable
+              style={styles.retryButton}
+              onPress={refreshContacts}
+            >
+              <Text style={styles.buttonText}>
+                Retry
+              </Text>
             </Pressable>
           </View>
         )}
@@ -241,36 +331,54 @@ const ContactListScreen = ({ navigation }: Props) => {
               name={item.name}
               phone={item.phone}
               isFavorite={favorites.includes(item.id)}
+
               // Open contact details
               onPress={() =>
                 navigation.navigate('ContactDetails', {
                   contactId: item.id,
                 })
               }
+
               // Favorite / unfavorite
-             
-              onFavoriteButton={() => handleToggleFavorite(item.id)}
-              // Edit contact
+              onFavoriteButton={() =>
+                handleToggleFavorite(item.id)
+              }
+
+              // Edit local contact
               onEditContact={
                 item.id.startsWith('local_')
                   ? () => handleEditContact(item)
                   : undefined
               }
+
               // Delete contact
-              onDeleteContact={() => handleDeleteContact(item)}
+              onDeleteContact={() =>
+                handleDeleteContact(item)
+              }
             />
           )}
-          // Infinite scrolling
 
+          // Infinite scrolling
           onEndReached={() => {
-            // Wait for the first API search to finish
-            if (debouncedSearch !== '' && isSearching) {
+            // Do not load more while API search is running
+            if (
+              debouncedSearch !== '' &&
+              isSearching
+            ) {
               return;
             }
 
-            loadMoreContacts();
+            // Load more API contacts only when not searching
+            if (
+              debouncedSearch === '' &&
+              hasMore &&
+              !isLoadingMore
+            ) {
+              loadMoreContacts();
+            }
           }}
           onEndReachedThreshold={0.5}
+
           // Pull-to-refresh
           refreshControl={
             <RefreshControl
@@ -278,50 +386,54 @@ const ContactListScreen = ({ navigation }: Props) => {
               onRefresh={refreshContacts}
             />
           }
+
+          // Footer loading indicator
           ListFooterComponent={
             isSearching || isLoadingMore ? (
               <View style={styles.footerContainer}>
-                <ActivityIndicator size="large" color="#2196F3" />
+                <ActivityIndicator
+                  size="large"
+                  color="#2196F3"
+                />
+
                 <Text style={styles.footerText}>
                   {isSearching
                     ? 'Searching contacts...'
                     : 'Loading more contacts...'}
                 </Text>
               </View>
-            ) : debouncedSearch === '' && !hasMore && contacts.length > 0 ? (
-              <Text style={styles.noMoreText}>No more contacts</Text>
+            ) : debouncedSearch === '' &&
+              !hasMore &&
+              allContacts.length > 0 ? (
+              <Text style={styles.noMoreText}>
+                No more contacts
+              </Text>
             ) : undefined
           }
+
+          // Empty list message
           ListEmptyComponent={
             <Text style={styles.emptyText}>
               {isSearching
                 ? 'Searching contacts...'
                 : debouncedSearch !== ''
-                ? 'No contacts match your search.'
-                : error !== ''
-                ? 'No contacts available. Please retry.'
-                : 'No contacts found.'}
+                  ? 'No contacts match your search.'
+                  : error !== ''
+                    ? 'No contacts available. Please retry.'
+                    : 'No contacts found.'}
             </Text>
           }
+
           contentContainerStyle={styles.listContent}
         />
 
         {/* Add/Edit Contact Form */}
-       
-
         <ContactForm
           visible={modalVisible}
-          contacts={contacts}
+          contacts={allContacts}
           editingContact={editingContact}
           onClose={handleCloseForm}
-        
-            onSave={async contact => {
-    if (editingContact) {
-      await updateContact(contact);
-    } else {
-      await addContact(contact);
-    }   
-  }}
+          onSave={handleSaveContact}
         />
       </View>
     </SafeAreaView>
