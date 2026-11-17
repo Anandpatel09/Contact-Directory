@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -26,76 +25,125 @@ import type { Contact } from '../Components/ContactForm';
 
 import { useContacts } from '../context/ContactContext';
 
-import {
-  useAppDispatch,
-  useAppSelector,
-} from '../hooks/reduxHooks';
+import { fetchUsers } from '../redux/usersThunks';
+
+import { toggleTheme, setDisplayMode } from '../redux/slice/settingsSlice';
 
 import {
   addContact as addContactAction,
   deleteContact as deleteContactAction,
   toggleFavorite as toggleFavoriteAction,
   updateContact as updateContactAction,
-} from '../redux/contactSlice';
+} from '../redux/slice/contactSlice';
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'ContactList'
->;
+import { useAppDispatch, useAppSelector } from '../redux/hooks/reduxHooks';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'ContactList'>;
 
 const ContactListScreen = ({ navigation }: Props) => {
-  // Context: API-related data and functionality
+  // CONTEXT: JSONPLACEHOLDER API
+
   const {
-    contacts,
+    contacts: contextContacts,
     isLoading,
     isRefreshing,
-    isLoadingMore,
-    isSearching,
-    hasMore,
-    error,
-    searchResults,
-    searchContacts,
-    clearSearchResults,
+    error: contactError,
     deleteContact: deleteApiContact,
     refreshContacts,
-    loadMoreContacts,
   } = useContacts();
 
-  // Redux dispatch
+  // REDUX
+
   const dispatch = useAppDispatch();
 
-  // Get local contacts from Redux
-  const localContacts = useAppSelector(
-    state => state.contacts.localContacts,
-  );
+  const localContacts = useAppSelector(state => state.contacts.localContacts);
 
-  // Get favorite IDs from Redux
-  const favorites = useAppSelector(
-    state => state.contacts.favorites,
-  );
+  const favorites = useAppSelector(state => state.contacts.favorites);
 
-  // Remove locally added contacts from Context.
-  // Redux is the source of truth for local contacts.
-  const apiContacts = contacts.filter(
-    contact => !contact.id.startsWith('local_'),
-  );
+  const theme = useAppSelector(state => state.settings.theme);
 
-  // Combine Redux local contacts and API contacts
-  const allContacts: Contact[] = [
-    ...localContacts,
-    ...apiContacts,
-  ];
+  const displayMode = useAppSelector(state => state.settings.displayMode);
 
-  // Search states
+  // DummyJSON users from Redux
+
+  const {
+    users,
+    status: usersStatus,
+    error: usersError,
+    loadingMore,
+    total,
+    skip,
+  } = useAppSelector(state => state.users);
+
+  // LOCAL STATES
+
+  const [deletedReduxUserIds, setDeletedReduxUserIds] = useState<string[]>([]);
+
   const [search, setSearch] = useState('');
+
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Add/Edit form states
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingContact, setEditingContact] =
-    useState<Contact | null>(null);
 
-  // Debounce the user's input
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+
+  // Prevent duplicate pagination requests
+
+  const loadingMoreRef = useRef(false);
+
+  // THEME COLORS
+
+  const isDark = theme === 'dark';
+
+  const backgroundColor = isDark ? '#171717' : '#FFFFFF';
+
+  const textColor = isDark ? '#FFFFFF' : '#222222';
+
+  const cardColor = isDark ? '#292929' : '#F2F2F2';
+
+  const borderColor = isDark ? '#555555' : '#CCCCCC';
+
+  // INITIAL API REQUEST
+
+  useEffect(() => {
+    if (usersStatus === 'idle') {
+      dispatch(
+        fetchUsers({
+          skip: 0,
+          limit: 10,
+        }),
+      );
+    }
+  }, [dispatch, usersStatus]);
+
+  // CONVERT DUMMYJSON USERS TO CONTACT
+
+  const reduxUsers: Contact[] = users
+    .filter(user => !deletedReduxUserIds.includes(String(user.id)))
+    .map(user => ({
+      id: String(user.id),
+      name: `${user.firstName} ${user.lastName}`,
+      phone: user.phone,
+      email: user.email,
+      image: user.image,
+    }));
+
+  // JSONPLACEHOLDER CONTACTS
+
+  const jsonPlaceholderContacts = contextContacts.filter(contact =>
+    contact.id.startsWith('users_'),
+  );
+
+  // COMBINE ALL CONTACTS
+
+  const allContacts: Contact[] = [
+    ...localContacts,
+    ...reduxUsers,
+    ...jsonPlaceholderContacts,
+  ];
+
+  // DEBOUNCING
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -106,72 +154,84 @@ const ContactListScreen = ({ navigation }: Props) => {
     };
   }, [search]);
 
-  // Search the API after the debounce delay
-  useEffect(() => {
-    if (debouncedSearch === '') {
-      clearSearchResults();
-      return;
-    }
+  // SEARCH ALL CONTACTS
 
-    searchContacts(debouncedSearch);
-  }, [debouncedSearch]);
-
-  // Search locally available contacts
-  const localSearchResults = allContacts.filter(contact => {
+  const displayedContacts = allContacts.filter(contact => {
     const query = debouncedSearch.toLowerCase();
 
     if (query === '') {
       return true;
     }
 
-    // Search by name
-    const nameMatch = contact.name
-      .toLowerCase()
-      .includes(query);
+    const nameMatch = contact.name.toLowerCase().includes(query);
 
-    // Search by email
-    const emailMatch = contact.email
-      .toLowerCase()
-      .includes(query);
+    const emailMatch = (contact.email || '').toLowerCase().includes(query);
 
-    // Search by phone number
     const phoneQuery = debouncedSearch.replace(/\D/g, '');
 
     const contactPhone = contact.phone.replace(/\D/g, '');
 
     const phoneMatch =
-      phoneQuery.length > 0 &&
-      contactPhone.includes(phoneQuery);
+      phoneQuery.length > 0 && contactPhone.includes(phoneQuery);
 
     return nameMatch || emailMatch || phoneMatch;
   });
 
-  // Combine local search results and API search results
-  // Map prevents duplicate contacts based on ID
-  const displayedContacts =
-    debouncedSearch === ''
-      ? allContacts
-      : [
-          ...new Map(
-            [...localSearchResults, ...searchResults].map(
-              contact => [contact.id, contact],
-            ),
-          ).values(),
-        ];
+  // PAGINATION
 
-  // Open add contact form
+  const handleLoadMore = async () => {
+    // Do not load more while searching
+
+    if (debouncedSearch !== '') {
+      return;
+    }
+
+    // Prevent duplicate requests
+
+    if (loadingMoreRef.current || loadingMore) {
+      return;
+    }
+
+    // Do not load during initial request
+
+    if (usersStatus === 'loading') {
+      return;
+    }
+
+    // Stop when all users are loaded
+
+    if (users.length >= total || total === 0) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+
+    try {
+      await dispatch(
+        fetchUsers({
+          skip,
+          limit: 10,
+        }),
+      );
+    } catch (error) {
+      console.log('Pagination error:', error);
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  };
+
+  // ADD CONTACT
+
   const handleAddContact = () => {
     setEditingContact(null);
     setModalVisible(true);
   };
 
-  // Open edit contact form
+  // EDIT CONTACT
+
   const handleEditContact = (contact: Contact) => {
     if (!contact.id.startsWith('local_')) {
-      Alert.alert(
-        'Edit Contact',
-        'Only locally added contacts can be edited.',
-      );
+      Alert.alert('Edit Contact', 'Only locally added contacts can be edited.');
 
       return;
     }
@@ -180,7 +240,8 @@ const ContactListScreen = ({ navigation }: Props) => {
     setModalVisible(true);
   };
 
-  // Delete contact with confirmation
+  // DELETE CONTACT
+
   const handleDeleteContact = (contact: Contact) => {
     Alert.alert(
       'Delete Contact',
@@ -196,18 +257,34 @@ const ContactListScreen = ({ navigation }: Props) => {
 
           onPress: async () => {
             try {
+              // Delete local contact
+
               if (contact.id.startsWith('local_')) {
-                // Delete local contact using Redux
                 dispatch(deleteContactAction(contact.id));
-              } else {
-                // Delete API contact using Context
+              }
+
+              // Delete JSONPlaceholder contact
+              else if (contact.id.startsWith('users_')) {
                 await deleteApiContact(contact);
               }
+
+              // Hide DummyJSON contact
+              else {
+                setDeletedReduxUserIds(previousIds => [
+                  ...previousIds,
+                  contact.id,
+                ]);
+
+                // Remove from favorites
+
+                if (favorites.includes(contact.id)) {
+                  dispatch(toggleFavoriteAction(contact.id));
+                }
+              }
             } catch (deleteError) {
-              Alert.alert(
-                'Error',
-                'Unable to delete the contact.',
-              );
+              console.log('Delete error:', deleteError);
+
+              Alert.alert('Error', 'Unable to delete the contact.');
             }
           },
         },
@@ -215,219 +292,343 @@ const ContactListScreen = ({ navigation }: Props) => {
     );
   };
 
-  // Toggle favorite using Redux
+  // THEME CHANGE
+
+  const handleThemeChange = () => {
+    dispatch(toggleTheme());
+  };
+
+  // DISPLAY MODE CHANGE
+
+  const handleDisplayChange = (mode: 'list' | 'cards') => {
+    dispatch(setDisplayMode(mode));
+  };
+
+  // FAVORITE
+
   const handleToggleFavorite = (id: string) => {
     dispatch(toggleFavoriteAction(id));
   };
 
-  // Close add/edit form
+  // CLOSE FORM
+
   const handleCloseForm = () => {
     setModalVisible(false);
     setEditingContact(null);
   };
 
-  // Save contact using Redux
-  const handleSaveContact = async (contact: Contact) => {
+  // SAVE CONTACT
+
+  const handleSaveContact = (contact: Contact) => {
     if (editingContact) {
-      // Update existing local contact
       dispatch(updateContactAction(contact));
     } else {
-      // Add new local contact
       dispatch(addContactAction(contact));
+    }
+
+    setModalVisible(false);
+    setEditingContact(null);
+  };
+
+  // REFRESH BOTH APIS
+
+  const handleRefresh = async () => {
+    // Prevent refresh during pagination
+
+    if (loadingMoreRef.current || loadingMore) {
+      return;
+    }
+
+    try {
+      await Promise.all([
+        refreshContacts(),
+
+        dispatch(
+          fetchUsers({
+            skip: 0,
+            limit: 10,
+          }),
+        ),
+      ]);
+    } catch (refreshError) {
+      console.log('Refresh error:', refreshError);
     }
   };
 
-  // Initial loading indicator
-  // Show it only when there are no local contacts to display
-  if (isLoading && allContacts.length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator
-          size="large"
-          color="#2196F3"
-        />
+  // RETRY DUMMYJSON API
 
-        <Text style={styles.loadingText}>
-          Loading contacts...
-        </Text>
-      </View>
+  const handleRetryUsers = () => {
+    dispatch(
+      fetchUsers({
+        skip: 0,
+        limit: 10,
+      }),
     );
-  }
+  };
 
-  return (
-    <SafeAreaView
-      style={styles.container}
-      edges={['top']}
-    >
-      <View style={styles.container}>
-        {/* Screen Heading */}
-        <Text style={styles.title}>
+  // HEADER COMPONENT
+
+  const renderHeader = () => {
+    return (
+      <View>
+        {/* Heading */}
+
+        <Text style={[styles.title, { color: textColor }]}>
           Contact Directory
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text style={[styles.subtitle, { color: textColor }]}>
           All your contacts in one place
         </Text>
 
-        {/* Total favorites from Redux */}
-        <Text style={styles.favoriteCount}>
+        {/* Display Mode */}
+
+        <View style={styles.layoutContainer}>
+          <Pressable
+            style={[
+              styles.layoutButton,
+              displayMode === 'list' && styles.activeLayoutButton,
+            ]}
+            onPress={() => handleDisplayChange('list')}
+          >
+            <Text style={styles.layoutButtonText}>List</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.layoutButton,
+              displayMode === 'cards' && styles.activeLayoutButton,
+            ]}
+            onPress={() => handleDisplayChange('cards')}
+          >
+            <Text style={styles.layoutButtonText}>Cards</Text>
+          </Pressable>
+        </View>
+
+        {/* Favorite Count */}
+
+        <Text style={[styles.favoriteCount, { color: textColor }]}>
           Total Favorites: {favorites.length}
         </Text>
 
-        {/* Search input */}
+        {/* Search */}
+
         <TextInput
-          style={styles.searchInput}
-          placeholder="Search by name, phone or email"
-          placeholderTextColor="#777777"
+          style={[
+            styles.searchInput,
+            {
+              backgroundColor: cardColor,
+              color: textColor,
+              borderColor,
+            },
+          ]}
+          placeholder="Search by name or phone"
+          placeholderTextColor={isDark ? '#AAAAAA' : '#777777'}
           value={search}
           onChangeText={setSearch}
         />
 
-        {/* Add Contact button */}
-        <Pressable
-          style={styles.addButton}
-          onPress={handleAddContact}
-        >
-          <Text style={styles.buttonText}>
-            + Add Contact
-          </Text>
+        {/* Add Contact */}
+
+        <Pressable style={styles.addButton} onPress={handleAddContact}>
+          <Text style={styles.buttonText}>+ Add Contact</Text>
         </Pressable>
 
-        {/* Favorites button */}
+        {/* Favorites */}
+
         <Pressable
           style={styles.favoritesButton}
           onPress={() => navigation.navigate('Favorites')}
         >
-          <Text style={styles.buttonText}>
-            View Favorites
-          </Text>
+          <Text style={styles.buttonText}>View Favorites</Text>
         </Pressable>
 
-        {/* API error */}
-        {error !== '' && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              {error}
+        {/* Display Settings */}
+
+        <View style={styles.settingsContainer}>
+          <Text style={[styles.settingsTitle, { color: textColor }]}>
+            Display Settings
+          </Text>
+
+          <Pressable
+            style={[styles.settingButton, { backgroundColor: cardColor }]}
+            onPress={handleThemeChange}
+          >
+            <Text style={[styles.settingButtonText, { color: textColor }]}>
+              Theme: {isDark ? 'Dark 🌙' : 'Light ☀️'}
             </Text>
+          </Pressable>
+        </View>
 
-            <Pressable
-              style={styles.retryButton}
-              onPress={refreshContacts}
-            >
-              <Text style={styles.buttonText}>
-                Retry
+        {/* API Status */}
+
+        <View style={styles.usersSection}>
+          <Text style={[styles.sectionTitle, { color: textColor }]}>
+            All Contacts ({displayedContacts.length})
+          </Text>
+
+          {usersStatus === 'loading' && (
+            <View style={styles.usersLoading}>
+              <ActivityIndicator size="small" color="#2196F3" />
+
+              <Text style={[styles.footerText, { color: textColor }]}>
+                Loading DummyJSON users...
               </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Contact list */}
-        <FlatList
-          data={displayedContacts}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <ContactCard
-              id={item.id}
-              name={item.name}
-              phone={item.phone}
-              isFavorite={favorites.includes(item.id)}
-
-              // Open contact details
-              onPress={() =>
-                navigation.navigate('ContactDetails', {
-                  contactId: item.id,
-                })
-              }
-
-              // Favorite / unfavorite
-              onFavoriteButton={() =>
-                handleToggleFavorite(item.id)
-              }
-
-              // Edit local contact
-              onEditContact={
-                item.id.startsWith('local_')
-                  ? () => handleEditContact(item)
-                  : undefined
-              }
-
-              // Delete contact
-              onDeleteContact={() =>
-                handleDeleteContact(item)
-              }
-            />
+            </View>
           )}
 
-          // Infinite scrolling
-          onEndReached={() => {
-            // Do not load more while API search is running
-            if (
-              debouncedSearch !== '' &&
-              isSearching
-            ) {
-              return;
-            }
+          {usersStatus === 'failed' && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>
+                {usersError || 'Unable to fetch DummyJSON users.'}
+              </Text>
 
-            // Load more API contacts only when not searching
-            if (
-              debouncedSearch === '' &&
-              hasMore &&
-              !isLoadingMore
-            ) {
-              loadMoreContacts();
-            }
-          }}
+              <Pressable style={styles.retryButton} onPress={handleRetryUsers}>
+                <Text style={styles.buttonText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* JSONPlaceholder API Error */}
+
+        {contactError !== '' && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{contactError}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // INITIAL LOADING
+
+  if ((isLoading || usersStatus === 'loading') && allContacts.length === 0) {
+    return (
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor }]}
+        edges={['top']}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2196F3" />
+
+          <Text style={styles.loadingText}>Loading contacts...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // MAIN UI
+
+  return (
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor }]}
+      edges={['top']}
+    >
+      <View style={[styles.container, { backgroundColor }]}>
+        <FlatList
+          key={displayMode}
+          data={displayedContacts}
+          keyExtractor={item => item.id}
+          numColumns={displayMode === 'cards' ? 2 : 1}
+          columnWrapperStyle={
+            displayMode === 'cards' ? styles.columnWrapper : undefined
+          }
+          // Header
+
+          ListHeaderComponent={renderHeader()}
+          // Contact Card
+
+          renderItem={({ item }) => (
+            <View
+              style={
+                displayMode === 'cards'
+                  ? styles.cardWrapper
+                  : styles.listWrapper
+              }
+            >
+              <ContactCard
+                id={item.id}
+                name={item.name}
+                phone={item.phone}
+                isFavorite={favorites.includes(item.id)}
+                displayMode={displayMode}
+                theme={theme}
+                // Open Contact Details
+
+                onPress={() =>
+                  navigation.navigate('ContactDetails', {
+                    contactId: item.id,
+                  })
+                }
+                // Toggle Favorite
+
+                onFavoriteButton={() => handleToggleFavorite(item.id)}
+                // Edit only local contacts
+
+                onEditContact={
+                  item.id.startsWith('local_')
+                    ? () => handleEditContact(item)
+                    : undefined
+                }
+                // Delete Contact
+
+                onDeleteContact={() => handleDeleteContact(item)}
+              />
+            </View>
+          )}
+          // PAGINATION
+
+          onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          // Pull to Refresh
 
-          // Pull-to-refresh
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
-              onRefresh={refreshContacts}
+              onRefresh={handleRefresh}
             />
           }
+          // FOOTER
 
-          // Footer loading indicator
           ListFooterComponent={
-            isSearching || isLoadingMore ? (
-              <View style={styles.footerContainer}>
-                <ActivityIndicator
-                  size="large"
-                  color="#2196F3"
-                />
+            <View>
+              {loadingMore ? (
+                <View style={styles.usersLoading}>
+                  <ActivityIndicator size="small" color="#2196F3" />
 
-                <Text style={styles.footerText}>
-                  {isSearching
-                    ? 'Searching contacts...'
-                    : 'Loading more contacts...'}
-                </Text>
-              </View>
-            ) : debouncedSearch === '' &&
-              !hasMore &&
-              allContacts.length > 0 ? (
-              <Text style={styles.noMoreText}>
-                No more contacts
-              </Text>
-            ) : undefined
+                  <Text style={[styles.footerText, { color: textColor }]}>
+                    Loading more users...
+                  </Text>
+                </View>
+              ) : usersError && users.length > 0 && users.length < total ? (
+                <Pressable style={styles.retryButton} onPress={handleLoadMore}>
+                  <Text style={styles.buttonText}>Retry loading more</Text>
+                </Pressable>
+              ) : users.length >= total && total > 0 ? (
+                <Text style={styles.noMoreText}>No more DummyJSON users</Text>
+              ) : (
+                <View />
+              )}
+            </View>
           }
+          // EMPTY LIST
 
-          // Empty list message
           ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              {isSearching
-                ? 'Searching contacts...'
+            <Text style={[styles.emptyText, { color: textColor }]}>
+              {usersStatus === 'loading' || isLoading
+                ? 'Loading contacts...'
                 : debouncedSearch !== ''
-                  ? 'No contacts match your search.'
-                  : error !== ''
-                    ? 'No contacts available. Please retry.'
-                    : 'No contacts found.'}
+                ? 'No contacts match your search.'
+                : contactError || usersError || 'No contacts found.'}
             </Text>
           }
-
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
 
-        {/* Add/Edit Contact Form */}
+        {/* ADD / EDIT CONTACT FORM */}
+
         <ContactForm
           visible={modalVisible}
           contacts={allContacts}
@@ -442,11 +643,15 @@ const ContactListScreen = ({ navigation }: Props) => {
 
 export default ContactListScreen;
 
-// Styles
+// STYLES
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
     paddingHorizontal: 12,
   },
 
@@ -458,19 +663,18 @@ const styles = StyleSheet.create({
 
   loadingText: {
     fontSize: 16,
-    color: '#555',
+    color: '#555555',
     marginTop: 12,
   },
 
   title: {
     fontSize: 25,
     fontWeight: 'bold',
-    color: '#222',
+    marginTop: 8,
   },
 
   subtitle: {
     fontSize: 14,
-    color: '#666',
     marginTop: 4,
   },
 
@@ -479,17 +683,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 10,
     marginBottom: 10,
-    color: '#222',
   },
 
   searchInput: {
-    backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: '#0b0a0a',
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
-    color: '#070404',
   },
 
   addButton: {
@@ -501,7 +701,7 @@ const styles = StyleSheet.create({
   },
 
   favoritesButton: {
-    backgroundColor: '#650b29',
+    backgroundColor: '#650B29',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -513,14 +713,74 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
+  settingsContainer: {
+    padding: 12,
+    marginBottom: 10,
+  },
+
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+
+  settingButton: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+
+  settingButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  layoutContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingVertical: 5,
+    gap: 10,
+  },
+
+  layoutButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#DDDDDD',
+  },
+
+  activeLayoutButton: {
+    backgroundColor: '#90CAF9',
+  },
+
+  layoutButtonText: {
+    color: '#222222',
+    fontWeight: '600',
+  },
+
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
+
+  cardWrapper: {
+    flex: 1,
+    marginHorizontal: 5,
+    marginBottom: 12,
+  },
+
+  listWrapper: {
+    width: '100%',
+    marginBottom: 10,
+  },
+
   listContent: {
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 25,
     flexGrow: 1,
   },
 
   emptyText: {
     textAlign: 'center',
-    color: '#888',
     marginTop: 35,
     fontSize: 16,
   },
@@ -529,7 +789,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDECEC',
     borderRadius: 8,
     padding: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   errorText: {
@@ -542,22 +802,36 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 6,
     alignItems: 'center',
+    marginVertical: 10,
   },
 
-  footerContainer: {
-    padding: 20,
+  usersSection: {
+    marginTop: 15,
+    marginBottom: 15,
+  },
+
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    marginTop: 8,
+  },
+
+  usersLoading: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
   },
 
   footerText: {
     fontSize: 14,
-    color: '#555',
-    marginTop: 8,
+    marginLeft: 8,
   },
 
   noMoreText: {
     textAlign: 'center',
-    color: '#777',
+    color: '#777777',
     padding: 20,
     fontSize: 14,
   },

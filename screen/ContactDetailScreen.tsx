@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 import {
@@ -16,9 +17,9 @@ import type { RootStackParamList } from '../navigation/types';
 
 import { useContacts } from '../context/ContactContext';
 
-import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
+import { useAppDispatch, useAppSelector } from '../redux/hooks/reduxHooks';
 
-import { toggleFavorite } from '../redux/contactSlice';
+import { toggleFavorite } from '../redux/slice/contactSlice';
 
 import type { Contact } from '../Components/ContactForm';
 
@@ -37,38 +38,52 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ContactDetails'>;
 const ContactDetailsScreen = ({ route, navigation }: Props) => {
   const { contactId } = route.params;
 
-  // Get API contacts and loading state from Context
-  const { contacts, isLoading } = useContacts();
+  // CONTEXT: JSONPlaceholder contacts
+  const { contacts: contextContacts, isLoading: contextLoading } =
+    useContacts();
 
-  // Redux dispatch
+  // REDUX
   const dispatch = useAppDispatch();
 
-  // Get locally added contacts from Redux
   const localContacts = useAppSelector(state => state.contacts.localContacts);
 
-  // Get favorite IDs from Redux
   const favorites = useAppSelector(state => state.contacts.favorites);
 
-  // Remove local contacts from API contacts
-  // because local contacts are already coming from Redux
-  const apiContacts = contacts.filter(
-    contact => !contact.id.startsWith('local_'),
+  // DummyJSON users from Redux thunk
+  const { users, status: usersStatus } = useAppSelector(state => state.users);
+
+  // Convert DummyJSON users into Contact format
+  const reduxUsers: Contact[] = users.map(user => ({
+    id: String(user.id),
+    name: `${user.firstName} ${user.lastName}`,
+    phone: user.phone,
+    email: user.email,
+    image: user.image,
+  }));
+
+  // JSONPlaceholder contacts
+  const jsonPlaceholderContacts = contextContacts.filter(contact =>
+    contact.id.startsWith('users_'),
   );
 
-  // Combine local and API contacts
-  const allContacts: Contact[] = [...localContacts, ...apiContacts];
+  // Combine all three contact sources
+  const allContacts: Contact[] = [
+    ...localContacts,
+    ...reduxUsers,
+    ...jsonPlaceholderContacts,
+  ];
 
   // Find selected contact
-  const contact = allContacts.find(item => item.id === contactId);
+  const contact = allContacts.find(item => item.id === String(contactId));
 
-  // Check favorite status
+  // Favorite status
   const isFavorite = contact ? favorites.includes(contact.id) : false;
 
-  // Detect platform
+  // Platform
   const isAndroid = Platform.OS === 'android';
   const isIOS = Platform.OS === 'ios';
 
-  // Generate initials from contact name
+  // Initials
   const getInitials = (name: string) => {
     const words = name.trim().split(/\s+/);
 
@@ -79,7 +94,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
     return (words[0][0] + words[words.length - 1][0]).toUpperCase();
   };
 
-  // Toggle favorite using Redux
+  // Toggle Favorite
   const handleToggleFavorite = () => {
     if (!contact) {
       return;
@@ -88,7 +103,9 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
     dispatch(toggleFavorite(contact.id));
   };
 
-  // Show loading indicator while API contacts are loading
+  // Loading
+  const isLoading = contextLoading || usersStatus === 'loading';
+
   if (isLoading && !contact) {
     return (
       <View style={styles.loadingContainer}>
@@ -99,7 +116,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
     );
   }
 
-  // Handle contact not found
+  // Contact not found
   if (!contact) {
     return (
       <View
@@ -135,7 +152,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
         <Text style={styles.initials}>{getInitials(contact.name)}</Text>
       </View>
 
-      {/* Contact Heading */}
+      {/* Heading */}
       <Text style={styles.heading}>Contact Details</Text>
 
       {/* Contact Information */}
@@ -159,7 +176,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
         <Text style={styles.value}>{isFavorite ? 'Yes ❤️' : 'No'}</Text>
       </View>
 
-      {/* Favorite / Unfavorite Button */}
+      {/* Favorite Button */}
       <Pressable
         style={[
           styles.favoriteButton,
@@ -174,7 +191,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
 
       {/* First Row */}
       <View style={styles.buttonRow}>
-        {/* Call Contact */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Call Contact"
@@ -184,7 +200,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
           />
         </View>
 
-        {/* SMS Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Send SMS"
@@ -197,7 +212,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
 
       {/* Second Row */}
       <View style={styles.buttonRow}>
-        {/* Mail Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Send Mail"
@@ -208,7 +222,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
           />
         </View>
 
-        {/* Share Contact Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Share Contact"
@@ -223,7 +236,6 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
 
       {/* Third Row */}
       <View style={styles.buttonRow}>
-        {/* Copy Contact Button */}
         <View style={styles.buttonItem}>
           <CustomButton
             title="Copy Contact"
@@ -250,7 +262,7 @@ const ContactDetailsScreen = ({ route, navigation }: Props) => {
 
 export default ContactDetailsScreen;
 
-// Styles
+// STYLES
 const styles = StyleSheet.create({
   container: {
     flex: 1,

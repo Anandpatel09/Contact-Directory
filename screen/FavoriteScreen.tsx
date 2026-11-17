@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 import {
@@ -21,9 +22,9 @@ import type { Contact } from '../Components/ContactForm';
 
 import { useContacts } from '../context/ContactContext';
 
-import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
+import { useAppDispatch, useAppSelector } from '../redux/hooks/reduxHooks';
 
-import { toggleFavorite, clearFavorites } from '../redux/contactSlice';
+import { toggleFavorite, clearFavorites } from '../redux/slice/contactSlice';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Favorites'>;
 
@@ -39,6 +40,12 @@ const FavoritesScreen = ({ navigation }: Props) => {
 
   // Get favorite IDs from Redux
   const favorites = useAppSelector(state => state.contacts.favorites);
+
+  // Get display mode from Redux
+  const displayMode = useAppSelector(state => state.settings.displayMode);
+
+  // Get theme from Redux
+  const theme = useAppSelector(state => state.settings.theme);
 
   // Remove local contacts from Context because they are already stored in Redux
   const apiContacts = contacts.filter(
@@ -119,6 +126,8 @@ const FavoritesScreen = ({ navigation }: Props) => {
               name={item.name}
               phone={item.phone}
               isFavorite={true}
+              displayMode={displayMode}
+              theme={theme}
               // Open Contact Details
               onPress={() =>
                 navigation.navigate('ContactDetails', {

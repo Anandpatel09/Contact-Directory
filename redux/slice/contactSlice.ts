@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { Contact } from '../Components/ContactForm';
+import type { Contact } from '../../Components/ContactForm';
 
 type ContactState = {
   localContacts: Contact[];
@@ -17,7 +17,7 @@ const contactSlice = createSlice({
 
   reducers: {
     addContact: (state, action: PayloadAction<Contact>) => {
-      state.localContacts.push(action.payload);
+      state.localContacts.unshift(action.payload);
     },
 
     // Needed if your existing ContactForm supports editing.
@@ -37,18 +37,14 @@ const contactSlice = createSlice({
       );
 
       // Also remove the deleted contact from favorites.
-      state.favorites = state.favorites.filter(
-        id => id !== action.payload,
-      );
+      state.favorites = state.favorites.filter(id => id !== action.payload);
     },
 
     toggleFavorite: (state, action: PayloadAction<string>) => {
       const contactId = action.payload;
 
       if (state.favorites.includes(contactId)) {
-        state.favorites = state.favorites.filter(
-          id => id !== contactId,
-        );
+        state.favorites = state.favorites.filter(id => id !== contactId);
       } else {
         state.favorites.push(contactId);
       }
@@ -59,10 +55,7 @@ const contactSlice = createSlice({
     },
 
     // Used when restoring data from AsyncStorage.
-    hydrateContacts: (
-      state,
-      action: PayloadAction<ContactState>,
-    ) => {
+    hydrateContacts: (state, action: PayloadAction<ContactState>) => {
       state.localContacts = action.payload.localContacts;
       state.favorites = action.payload.favorites;
     },

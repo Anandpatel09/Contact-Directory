@@ -1,86 +1,119 @@
 import React, { useEffect, useState } from 'react';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useAppDispatch, useAppSelector } from '../hooks/reduxHooks';
-import { hydrateContacts } from './contactSlice';
+import { useAppDispatch, useAppSelector } from './hooks/reduxHooks';
+
+import { hydrateContacts } from './slice/contactSlice';
+
+import { hydrateSettings } from './slice/settingsSlice';
+
 import type { Contact } from '../Components/ContactForm';
 
-type Props = {
-  children: React.ReactNode;
-};
+type ThemePreference = 'light' | 'dark';
 
-const ReduxPersistence = ({ children }: Props) => {
+type DisplayPreference = 'list' | 'cards';
+
+const ReduxPersistence = ({ children }: { children: React.ReactNode }) => {
   const dispatch = useAppDispatch();
 
-  const localContacts = useAppSelector(
-    state => state.contacts.localContacts,
-  );
+  // Redux state
+  const localContacts = useAppSelector(state => state.contacts.localContacts);
 
-  const favorites = useAppSelector(
-    state => state.contacts.favorites,
-  );
+  const favorites = useAppSelector(state => state.contacts.favorites);
 
+  const theme = useAppSelector(state => state.settings.theme);
+
+  const displayMode = useAppSelector(state => state.settings.displayMode);
+
+  // Tracks whether saved data has been loaded
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Restore saved Redux data when the app starts.
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const savedContacts = await AsyncStorage.getItem('localContacts');
-        const savedFavorites = await AsyncStorage.getItem('favoriteContacts');
+  // LOAD DATA FROM ASYNC STORAGE
 
-        const contacts: Contact[] = savedContacts
+  useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        const [savedContacts, savedFavorites, savedTheme, savedDisplayMode] =
+          await Promise.all([
+            AsyncStorage.getItem('localContacts'),
+            AsyncStorage.getItem('favoriteContacts'),
+            AsyncStorage.getItem('appTheme'),
+            AsyncStorage.getItem('displayMode'),
+          ]);
+
+        // Restore local contacts
+        const parsedContacts: Contact[] = savedContacts
           ? JSON.parse(savedContacts)
           : [];
 
-        const favoriteIds: string[] = savedFavorites
+        // Restore favorite IDs
+        const parsedFavorites: string[] = savedFavorites
           ? JSON.parse(savedFavorites)
           : [];
 
         dispatch(
           hydrateContacts({
-            localContacts: Array.isArray(contacts) ? contacts : [],
-            favorites: Array.isArray(favoriteIds) ? favoriteIds : [],
+            localContacts: Array.isArray(parsedContacts) ? parsedContacts : [],
+            favorites: Array.isArray(parsedFavorites) ? parsedFavorites : [],
+          }),
+        );
+
+        // Restore theme
+        const validTheme: ThemePreference =
+          savedTheme === 'dark' ? 'dark' : 'light';
+
+        // Restore display mode
+        const validDisplayMode: DisplayPreference =
+          savedDisplayMode === 'cards' ? 'cards' : 'list';
+
+        dispatch(
+          hydrateSettings({
+            theme: validTheme,
+            displayMode: validDisplayMode,
           }),
         );
       } catch (error) {
-        console.log('Error restoring contacts:', error);
+        console.log('Error loading saved Redux data:', error);
       } finally {
         setIsHydrated(true);
       }
     };
 
-    loadData();
+    loadSavedData();
   }, [dispatch]);
 
-  // Save whenever Redux contacts or favorites change.
+  // SAVE REDUX DATA TO ASYNC STORAGE
+
   useEffect(() => {
     if (!isHydrated) {
       return;
     }
 
     const saveData = async () => {
-  try {
-    await AsyncStorage.setItem(
-      'localContacts',
-      JSON.stringify(localContacts),
-    );
+      try {
+        await AsyncStorage.setItem(
+          'localContacts',
+          JSON.stringify(localContacts),
+        );
 
-    await AsyncStorage.setItem(
-      'favoriteContacts',
-      JSON.stringify(favorites),
-    );
+        await AsyncStorage.setItem(
+          'favoriteContacts',
+          JSON.stringify(favorites),
+        );
 
-    console.log('Redux data saved successfully');
-  } catch (error) {
-    console.log('Error saving contacts:', error);
-  }
-};
+        await AsyncStorage.setItem('appTheme', theme);
+
+        await AsyncStorage.setItem('displayMode', displayMode);
+      } catch (error) {
+        console.log('Error saving Redux data:', error);
+      }
+    };
 
     saveData();
-  }, [localContacts, favorites, isHydrated]);
+  }, [isHydrated, localContacts, favorites, theme, displayMode]);
 
-  // Do not show screens until saved data has been restored.
+  // Don't render the app before restoring saved data
   if (!isHydrated) {
     return null;
   }
