@@ -1,9 +1,9 @@
-
 import React from 'react';
 
 import {
   Alert,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -26,43 +26,89 @@ import { useAppDispatch, useAppSelector } from '../redux/hooks/reduxHooks';
 
 import { toggleFavorite, clearFavorites } from '../redux/slice/contactSlice';
 
+import ArrowIconpng from '../assets/icons/arrow.png';
+
+import DeleteIcon from '../assets/icons/delete.svg';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Favorites'>;
 
 const FavoritesScreen = ({ navigation }: Props) => {
-  // Get API contacts from Context
+  // Get API contacts from Context API
   const { contacts } = useContacts();
 
-  // Get Redux dispatch
+  // Redux dispatch
   const dispatch = useAppDispatch();
 
-  // Get locally added contacts from Redux
+  // Get local contacts from Redux
   const localContacts = useAppSelector(state => state.contacts.localContacts);
 
-  // Get favorite IDs from Redux
+  // Get favorite IDs
   const favorites = useAppSelector(state => state.contacts.favorites);
 
-  // Get display mode from Redux
+  // Get DummyJSON users from Redux
+  const apiUsers = useAppSelector(state => state.users.users);
+
+  // Get display mode
   const displayMode = useAppSelector(state => state.settings.displayMode);
 
-  // Get theme from Redux
+  // Get theme
   const theme = useAppSelector(state => state.settings.theme);
 
-  // Remove local contacts from Context because they are already stored in Redux
-  const apiContacts = contacts.filter(
+  // Theme configuration
+  const isDark = theme === 'dark';
+
+  const colors = {
+    background: isDark ? '#101820' : '#F4F7FB',
+    surface: isDark ? '#1B2935' : '#FFFFFF',
+    card: isDark ? '#223442' : '#F8FAFC',
+
+    text: isDark ? '#F1F5F9' : '#172B3A',
+    secondaryText: isDark ? '#A8BAC8' : '#64748B',
+
+    border: isDark ? '#344957' : '#E2E8F0',
+
+    primary: isDark ? '#0F9F91' : '#0D9488',
+    primaryText: '#FFFFFF',
+
+    iconBackground: isDark ? '#4a6d7d' : '#E0F2F1',
+
+    avatarBackground: isDark ? '#294653' : '#DCEFEB',
+    avatarText: isDark ? '#5EEAD4' : '#0F766E',
+
+    favoriteBackground: isDark ? '#3A2B35' : '#FCE7EF',
+    favoriteText: isDark ? '#FDA4AF' : '#BE185D',
+  };
+
+  // Convert DummyJSON users into Contact format
+  const formattedApiUsers: Contact[] = apiUsers.map(user => ({
+    id: String(user.id),
+    name: `${user.firstName} ${user.lastName}`,
+    phone: user.phone,
+    email: user.email,
+    image: user.image,
+  }));
+
+  // Get API contacts from Context
+  // Exclude local contacts because they are already in Redux
+  const apiContacts: Contact[] = contacts.filter(
     contact => !contact.id.startsWith('local_'),
   );
 
-  // Combine local contacts and API contacts
-  const allContacts: Contact[] = [...localContacts, ...apiContacts];
+  // Combine all three contact sources
+  const allContacts: Contact[] = [
+    ...localContacts,
+    ...apiContacts,
+    ...formattedApiUsers,
+  ];
 
   // Get only favorite contacts
   const favoriteContacts = allContacts.filter(contact =>
-    favorites.includes(contact.id),
+    favorites.includes(String(contact.id)),
   );
 
-  // Remove a contact from favorites
+  // Remove contact from favorites
   const handleToggleFavorite = (id: string) => {
-    dispatch(toggleFavorite(id));
+    dispatch(toggleFavorite(String(id)));
   };
 
   // Clear all favorites
@@ -87,42 +133,79 @@ const FavoritesScreen = ({ navigation }: Props) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <View style={styles.container}>
         {/* Screen Heading */}
-        <Text style={styles.title}>Favorite Contacts</Text>
+        <View style={styles.contactDetail}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
+            <Image
+              source={ArrowIconpng}
+              style={[
+                styles.backIcon,
+                { backgroundColor: colors.iconBackground },
+              ]}
+              resizeMode="contain"
+            />
+          </Pressable>
 
-        {/* Total Favorites */}
-        <Text style={styles.count}>
-          Total Favorites: {favoriteContacts.length}
-        </Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Favorite Contacts
+          </Text>
+        </View>
 
-        {/* Clear Favorites Button */}
-        <Pressable
-          style={[
-            styles.clearButton,
-            favoriteContacts.length === 0 && styles.disabledButton,
-          ]}
-          disabled={favoriteContacts.length === 0}
-          onPress={handleClearFavorites}
-        >
-          <Text style={styles.buttonText}>Clear Favorites</Text>
-        </Pressable>
+        {/* Favorite Count and Clear Button */}
+        <View style={styles.favorite}>
+          {/* Total Favorites */}
+          <View
+            style={[styles.countContainer, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.countLabel}>Total Favorites</Text>
+
+            <Text style={styles.count}>{favoriteContacts.length}</Text>
+          </View>
+
+          {/* Clear Favorites Button */}
+          <Pressable
+            style={[
+              styles.clearButton,
+              {
+                backgroundColor: colors.favoriteBackground,
+                borderColor: colors.border,
+              },
+              favoriteContacts.length === 0 && styles.disabledButton,
+            ]}
+            disabled={favoriteContacts.length === 0}
+            onPress={handleClearFavorites}
+          >
+            <View style={styles.clearFavorite}>
+              <Text style={[styles.buttonText, { color: colors.favoriteText }]}>
+                Clear Favorites
+              </Text>
+
+              <DeleteIcon width={18} height={18} />
+            </View>
+          </Pressable>
+        </View>
 
         {/* Favorite Contacts List */}
         <FlatList
           data={favoriteContacts}
-          keyExtractor={item => item.id}
+          keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           // Empty List Message
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No favorite contacts found!</Text>
+            <Text style={[styles.emptyText, { color: colors.secondaryText }]}>
+              No favorite contacts found!
+            </Text>
           }
           // Render Favorite Contact
           renderItem={({ item }) => (
             <ContactCard
-              id={item.id}
+              id={String(item.id)}
               name={item.name}
               phone={item.phone}
               isFavorite={true}
@@ -131,25 +214,14 @@ const FavoritesScreen = ({ navigation }: Props) => {
               // Open Contact Details
               onPress={() =>
                 navigation.navigate('ContactDetails', {
-                  contactId: item.id,
+                  contactId: String(item.id),
                 })
               }
               // Remove from Favorites
-              onFavoriteButton={() => handleToggleFavorite(item.id)}
-
-              // Edit is not enabled on Favorites screen
-              // Delete is not enabled on Favorites screen
+              onFavoriteButton={() => handleToggleFavorite(String(item.id))}
             />
           )}
         />
-
-        {/* Back Button */}
-        <Pressable
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
-        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -161,39 +233,74 @@ export default FavoritesScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
     paddingHorizontal: 12,
   },
 
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#222',
+  },
+
+  contactDetail: {
+    marginTop: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  favorite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 10,
+  },
+
+  countContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 12,
+  },
+
+  countLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   count: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 12,
-    color: '#222',
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 
   clearButton: {
-    backgroundColor: '#D9534F',
-    padding: 12,
-    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
-    marginBottom: 15,
+    justifyContent: 'center',
   },
 
-  disabledButton: {
-    opacity: 0.5,
+  clearFavorite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
   },
 
   buttonText: {
-    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: 'bold',
+  },
+
+  disabledButton: {
+    opacity: 0.4,
   },
 
   listContent: {
@@ -203,16 +310,14 @@ const styles = StyleSheet.create({
 
   emptyText: {
     textAlign: 'center',
-    color: '#888',
     fontSize: 16,
     marginTop: 40,
   },
 
-  backButton: {
-    backgroundColor: '#2196F3',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 20,
+  backIcon: {
+    width: 34,
+    height: 24,
+    padding: 13,
+    borderRadius: 13,
   },
 });

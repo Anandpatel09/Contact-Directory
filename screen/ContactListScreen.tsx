@@ -6,6 +6,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -37,6 +38,12 @@ import {
 } from '../redux/slice/contactSlice';
 
 import { useAppDispatch, useAppSelector } from '../redux/hooks/reduxHooks';
+import DarkModeIcon from '../assets/icons/darkmode.svg';
+import LightIcon from '../assets/icons/lightmode.svg';
+import GridIcon from '../assets/icons/grid.svg';
+import ListIcon from '../assets/icons/list.svg';
+import SearchIcon from '../assets/icons/search.svg';
+import HeartIcon from '../assets/icons/heart.svg';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactList'>;
 
@@ -95,13 +102,14 @@ const ContactListScreen = ({ navigation }: Props) => {
 
   const isDark = theme === 'dark';
 
-  const backgroundColor = isDark ? '#171717' : '#FFFFFF';
+  const backgroundColor = isDark ? '#071B2A' : '#F2F6F9';
+  const textColor = isDark ? '#FFFFFF' : '#203746';
+  const cardColor = isDark ? '#102B3B' : '#FFFFFF';
+  const borderColor = isDark ? '#244354' : '#E0E8ED';
 
-  const textColor = isDark ? '#FFFFFF' : '#222222';
-
-  const cardColor = isDark ? '#292929' : '#F2F2F2';
-
-  const borderColor = isDark ? '#555555' : '#CCCCCC';
+  const headerColor = '#073D4C';
+  const accentColor = '#12A6AD';
+  const secondaryText = isDark ? '#A9BBC5' : '#71818D';
 
   // INITIAL API REQUEST
 
@@ -371,19 +379,80 @@ const ContactListScreen = ({ navigation }: Props) => {
   const renderHeader = () => {
     return (
       <View>
-        {/* Heading */}
+        {/* TOP HEADER */}
 
-        <Text style={[styles.title, { color: textColor }]}>
-          Contact Directory
-        </Text>
+        <View style={styles.headerTop}>
+          <View style={styles.toggleContainer}>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.title}>Contact Directory</Text>
 
-        <Text style={[styles.subtitle, { color: textColor }]}>
-          All your contacts in one place
-        </Text>
+              <Text style={styles.subtitle}>
+                All your contacts in one place
+              </Text>
+            </View>
 
-        {/* Display Mode */}
+            <View>
+              {/* Theme Toggle */}
 
-        <View style={styles.layoutContainer}>
+              <Pressable style={styles.themeButton} onPress={handleThemeChange}>
+                {isDark ? (
+                  <LightIcon width={23} height={23} />
+                ) : (
+                  <DarkModeIcon width={23} height={23} />
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          {/* FAVORITES BANNER */}
+
+          <Pressable
+            style={[styles.favoriteBanner, { backgroundColor: cardColor }]}
+            onPress={() => navigation.navigate('Favorites')}
+          >
+            <View style={styles.favoriteIconContainer}>
+              <HeartIcon width={23} height={23} />
+            </View>
+
+            <View style={styles.favoriteInfo}>
+              <Text style={[styles.favoriteTitle, { color: textColor }]}>
+                Favorites
+              </Text>
+
+              <Text style={[styles.favoriteSubtitle, { color: secondaryText }]}>
+                {favorites.length} contacts
+              </Text>
+            </View>
+
+            <Text style={[styles.arrow, { color: accentColor }]}>›</Text>
+          </Pressable>
+        </View>
+
+        {/* SEARCH BAR */}
+
+        <View
+          style={[
+            styles.searchContainer,
+            {
+              backgroundColor: cardColor,
+              borderColor,
+            },
+          ]}
+        >
+          <SearchIcon width={20} height={20} />
+
+          <TextInput
+            style={[styles.searchInput, { color: textColor }]}
+            placeholder="Search by name or phone"
+            placeholderTextColor={secondaryText}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        {/* LIST / CARDS SELECTOR */}
+
+        <View style={[styles.layoutContainer, { backgroundColor: cardColor }]}>
           <Pressable
             style={[
               styles.layoutButton,
@@ -391,7 +460,16 @@ const ContactListScreen = ({ navigation }: Props) => {
             ]}
             onPress={() => handleDisplayChange('list')}
           >
-            <Text style={styles.layoutButtonText}>List</Text>
+            <ListIcon width={18} height={18} />
+
+            <Text
+              style={[
+                styles.layoutButtonText,
+                displayMode === 'list' && styles.activeLayoutText,
+              ]}
+            >
+              List
+            </Text>
           </Pressable>
 
           <Pressable
@@ -401,96 +479,56 @@ const ContactListScreen = ({ navigation }: Props) => {
             ]}
             onPress={() => handleDisplayChange('cards')}
           >
-            <Text style={styles.layoutButtonText}>Cards</Text>
-          </Pressable>
-        </View>
+            <GridIcon width={18} height={18} />
 
-        {/* Favorite Count */}
-
-        <Text style={[styles.favoriteCount, { color: textColor }]}>
-          Total Favorites: {favorites.length}
-        </Text>
-
-        {/* Search */}
-
-        <TextInput
-          style={[
-            styles.searchInput,
-            {
-              backgroundColor: cardColor,
-              color: textColor,
-              borderColor,
-            },
-          ]}
-          placeholder="Search by name or phone"
-          placeholderTextColor={isDark ? '#AAAAAA' : '#777777'}
-          value={search}
-          onChangeText={setSearch}
-        />
-
-        {/* Add Contact */}
-
-        <Pressable style={styles.addButton} onPress={handleAddContact}>
-          <Text style={styles.buttonText}>+ Add Contact</Text>
-        </Pressable>
-
-        {/* Favorites */}
-
-        <Pressable
-          style={styles.favoritesButton}
-          onPress={() => navigation.navigate('Favorites')}
-        >
-          <Text style={styles.buttonText}>View Favorites</Text>
-        </Pressable>
-
-        {/* Display Settings */}
-
-        <View style={styles.settingsContainer}>
-          <Text style={[styles.settingsTitle, { color: textColor }]}>
-            Display Settings
-          </Text>
-
-          <Pressable
-            style={[styles.settingButton, { backgroundColor: cardColor }]}
-            onPress={handleThemeChange}
-          >
-            <Text style={[styles.settingButtonText, { color: textColor }]}>
-              Theme: {isDark ? 'Dark 🌙' : 'Light ☀️'}
+            <Text
+              style={[
+                styles.layoutButtonText,
+                displayMode === 'cards' && styles.activeLayoutText,
+              ]}
+            >
+              Cards
             </Text>
           </Pressable>
         </View>
 
-        {/* API Status */}
+        {/* CONTACTS HEADING */}
 
-        <View style={styles.usersSection}>
+        <View style={styles.contactsHeading}>
           <Text style={[styles.sectionTitle, { color: textColor }]}>
-            All Contacts ({displayedContacts.length})
+            All Contacts
           </Text>
 
-          {usersStatus === 'loading' && (
-            <View style={styles.usersLoading}>
-              <ActivityIndicator size="small" color="#2196F3" />
-
-              <Text style={[styles.footerText, { color: textColor }]}>
-                Loading DummyJSON users...
-              </Text>
-            </View>
-          )}
-
-          {usersStatus === 'failed' && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>
-                {usersError || 'Unable to fetch DummyJSON users.'}
-              </Text>
-
-              <Pressable style={styles.retryButton} onPress={handleRetryUsers}>
-                <Text style={styles.buttonText}>Retry</Text>
-              </Pressable>
-            </View>
-          )}
+          {/* <Text style={[styles.contactCount, { color: secondaryText }]}>
+            {displayedContacts.length} contacts
+          </Text> */}
         </View>
 
-        {/* JSONPlaceholder API Error */}
+        {/* API LOADING */}
+
+        {usersStatus === 'loading' && (
+          <View style={styles.usersLoading}>
+            <ActivityIndicator size="small" color={accentColor} />
+
+            <Text style={[styles.footerText, { color: textColor }]}>
+              Loading users...
+            </Text>
+          </View>
+        )}
+
+        {/* API ERROR */}
+
+        {usersStatus === 'failed' && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>
+              {usersError || 'Unable to fetch users.'}
+            </Text>
+
+            <Pressable style={styles.retryButton} onPress={handleRetryUsers}>
+              <Text style={styles.buttonText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
 
         {contactError !== '' && (
           <View style={styles.errorContainer}>
@@ -500,7 +538,6 @@ const ContactListScreen = ({ navigation }: Props) => {
       </View>
     );
   };
-
   // INITIAL LOADING
 
   if ((isLoading || usersStatus === 'loading') && allContacts.length === 0) {
@@ -519,13 +556,16 @@ const ContactListScreen = ({ navigation }: Props) => {
   }
 
   // MAIN UI
-
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
+      <StatusBar backgroundColor={headerColor} barStyle="light-content" />
+
       <View style={[styles.container, { backgroundColor }]}>
+        {/* CONTACT LIST */}
+
         <FlatList
           key={displayMode}
           data={displayedContacts}
@@ -534,11 +574,7 @@ const ContactListScreen = ({ navigation }: Props) => {
           columnWrapperStyle={
             displayMode === 'cards' ? styles.columnWrapper : undefined
           }
-          // Header
-
           ListHeaderComponent={renderHeader()}
-          // Contact Card
-
           renderItem={({ item }) => (
             <View
               style={
@@ -551,54 +587,43 @@ const ContactListScreen = ({ navigation }: Props) => {
                 id={item.id}
                 name={item.name}
                 phone={item.phone}
+                image={item.image}
                 isFavorite={favorites.includes(item.id)}
                 displayMode={displayMode}
                 theme={theme}
-                // Open Contact Details
-
                 onPress={() =>
                   navigation.navigate('ContactDetails', {
                     contactId: item.id,
                   })
                 }
-                // Toggle Favorite
-
                 onFavoriteButton={() => handleToggleFavorite(item.id)}
-                // Edit only local contacts
-
                 onEditContact={
                   item.id.startsWith('local_')
                     ? () => handleEditContact(item)
                     : undefined
                 }
-                // Delete Contact
-
                 onDeleteContact={() => handleDeleteContact(item)}
               />
             </View>
           )}
-          // PAGINATION
-
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          // Pull to Refresh
-
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
+              tintColor={accentColor}
+              colors={[accentColor]}
             />
           }
-          // FOOTER
-
           ListFooterComponent={
             <View>
               {loadingMore ? (
                 <View style={styles.usersLoading}>
-                  <ActivityIndicator size="small" color="#2196F3" />
+                  <ActivityIndicator size="small" color={accentColor} />
 
                   <Text style={[styles.footerText, { color: textColor }]}>
-                    Loading more users...
+                    Loading more contacts...
                   </Text>
                 </View>
               ) : usersError && users.length > 0 && users.length < total ? (
@@ -606,14 +631,12 @@ const ContactListScreen = ({ navigation }: Props) => {
                   <Text style={styles.buttonText}>Retry loading more</Text>
                 </Pressable>
               ) : users.length >= total && total > 0 ? (
-                <Text style={styles.noMoreText}>No more DummyJSON users</Text>
-              ) : (
-                <View />
-              )}
+                <Text style={[styles.noMoreText, { color: secondaryText }]}>
+                  No more contacts
+                </Text>
+              ) : null}
             </View>
           }
-          // EMPTY LIST
-
           ListEmptyComponent={
             <Text style={[styles.emptyText, { color: textColor }]}>
               {usersStatus === 'loading' || isLoading
@@ -626,6 +649,43 @@ const ContactListScreen = ({ navigation }: Props) => {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
+
+        {/* FLOATING ADD BUTTON */}
+
+        <Pressable style={styles.floatingAddButton} onPress={handleAddContact}>
+          <Text style={styles.plusIcon}>+</Text>
+        </Pressable>
+
+        {/* BOTTOM NAVIGATION */}
+
+        <View
+          style={[
+            styles.bottomNavigation,
+            {
+              backgroundColor: cardColor,
+              borderTopColor: borderColor,
+            },
+          ]}
+        >
+          <Pressable style={styles.bottomNavItem}>
+            <ListIcon width={22} height={22} />
+
+            <Text style={[styles.bottomNavText, { color: accentColor }]}>
+              Contacts
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.bottomNavItem}
+            onPress={() => navigation.navigate('Favorites')}
+          >
+            <HeartIcon width={22} height={22} />
+
+            <Text style={[styles.bottomNavText, { color: secondaryText }]}>
+              Favorites
+            </Text>
+          </Pressable>
+        </View>
 
         {/* ADD / EDIT CONTACT FORM */}
 
@@ -645,6 +705,198 @@ export default ContactListScreen;
 
 // STYLES
 
+// const styles = StyleSheet.create({
+//   safeArea: {
+//     flex: 1,
+//   },
+
+//   container: {
+//     flex: 1,
+//     paddingHorizontal: 12,
+//   },
+
+//   loadingContainer: {
+//     flex: 1,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//   },
+
+//   loadingText: {
+//     fontSize: 16,
+//     color: '#555555',
+//     marginTop: 12,
+//   },
+
+//   title: {
+//     fontSize: 25,
+//     fontWeight: 'bold',
+//     marginTop: 8,
+//   },
+
+//   subtitle: {
+//     fontSize: 14,
+//     marginTop: 4,
+//   },
+
+//   favoriteCount: {
+//     fontSize: 15,
+//     fontWeight: '600',
+//     marginTop: 10,
+//     marginBottom: 10,
+//   },
+
+//   searchInput: {
+//     borderWidth: 1,
+//     borderRadius: 10,
+//     padding: 12,
+//     marginBottom: 10,
+//   },
+
+//   addButton: {
+//     backgroundColor: '#2196F3',
+//     padding: 12,
+//     borderRadius: 8,
+//     alignItems: 'center',
+//     marginBottom: 10,
+//   },
+
+//   favoritesButton: {
+//     backgroundColor: '#650B29',
+//     padding: 12,
+//     borderRadius: 8,
+//     alignItems: 'center',
+//     marginBottom: 12,
+//   },
+
+//   buttonText: {
+//     color: '#FFFFFF',
+//     fontWeight: 'bold',
+//   },
+
+//   settingsContainer: {
+//     padding: 12,
+//     marginBottom: 10,
+//   },
+
+//   settingsTitle: {
+//     fontSize: 18,
+//     fontWeight: 'bold',
+//     marginBottom: 10,
+//   },
+
+//   settingButton: {
+//     padding: 12,
+//     borderRadius: 8,
+//     marginBottom: 8,
+//   },
+
+//   settingButtonText: {
+//     fontSize: 15,
+//     fontWeight: '600',
+//   },
+
+//   layoutContainer: {
+//     flexDirection: 'row',
+//     justifyContent: 'flex-end',
+//     paddingVertical: 5,
+//     gap: 10,
+//   },
+
+//   layoutButton: {
+//     paddingVertical: 10,
+//     paddingHorizontal: 18,
+//     borderRadius: 8,
+//     backgroundColor: '#DDDDDD',
+//   },
+
+//   activeLayoutButton: {
+//     backgroundColor: '#90CAF9',
+//   },
+
+//   layoutButtonText: {
+//     color: '#222222',
+//     fontWeight: '600',
+//   },
+
+//   columnWrapper: {
+//     justifyContent: 'space-between',
+//   },
+
+//   cardWrapper: {
+//     flex: 1,
+//     marginHorizontal: 5,
+//     marginBottom: 12,
+//   },
+
+//   listWrapper: {
+//     width: '100%',
+//     marginBottom: 10,
+//   },
+
+//   listContent: {
+//     paddingTop: 8,
+//     paddingBottom: 25,
+//     flexGrow: 1,
+//   },
+
+//   emptyText: {
+//     textAlign: 'center',
+//     marginTop: 35,
+//     fontSize: 16,
+//   },
+
+//   errorContainer: {
+//     backgroundColor: '#FDECEC',
+//     borderRadius: 8,
+//     padding: 10,
+//     marginBottom: 8,
+//   },
+
+//   errorText: {
+//     color: '#B00020',
+//     marginBottom: 8,
+//   },
+
+//   retryButton: {
+//     backgroundColor: '#D9534F',
+//     padding: 10,
+//     borderRadius: 6,
+//     alignItems: 'center',
+//     marginVertical: 10,
+//   },
+
+//   usersSection: {
+//     marginTop: 15,
+//     marginBottom: 15,
+//   },
+
+//   sectionTitle: {
+//     fontSize: 19,
+//     fontWeight: 'bold',
+//     marginBottom: 10,
+//     marginTop: 8,
+//   },
+
+//   usersLoading: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     padding: 15,
+//   },
+
+//   footerText: {
+//     fontSize: 14,
+//     marginLeft: 8,
+//   },
+
+//   noMoreText: {
+//     textAlign: 'center',
+//     color: '#777777',
+//     padding: 20,
+//     fontSize: 14,
+//   },
+// });
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -652,8 +904,251 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    paddingHorizontal: 12,
   },
+
+  // Header
+
+  headerTop: {
+    backgroundColor: '#0e6c85',
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 24,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    marginBottom: 8,
+  },
+
+  headerTextContainer: {
+    flex: 1,
+  },
+
+  title: {
+    fontSize: 23,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+
+  subtitle: {
+    fontSize: 12,
+    color: '#D0E4E9',
+    marginTop: 5,
+  },
+
+  themeButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#f1f6f8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+
+  toggleContainer:{
+  flex:1,
+  flexDirection:'row'
+  },
+  // Favorites Banner
+
+  favoriteBanner: {
+    marginHorizontal: 9,
+    marginTop: 9,
+    marginBottom: 12,
+    borderRadius: 10,
+    padding: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 2,
+    // backgroundColor: '#b7384d',
+  },
+
+  favoriteIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#f0dee1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  favoriteInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  favoriteTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+
+  favoriteSubtitle: {
+    fontSize: 11,
+    marginTop: 3,
+  },
+
+  arrow: {
+    fontSize: 27,
+    fontWeight: 'bold',
+    marginRight: 5,
+  },
+
+  // Search
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 46,
+    marginBottom: 12,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    marginLeft: 10,
+    paddingVertical: 0,
+  },
+
+  // Layout Selector
+
+  layoutContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 14,
+    padding: 4,
+    borderRadius: 10,
+    marginBottom: 15,
+  },
+
+  layoutButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderRadius: 8,
+    gap: 7,
+  },
+
+  activeLayoutButton: {
+    backgroundColor: '#12A6AD',
+  },
+
+  layoutButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8798A2',
+  },
+
+  activeLayoutText: {
+    color: '#FFFFFF',
+  },
+
+  // Contacts Heading
+
+  contactsHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+
+  contactCount: {
+    fontSize: 12,
+  },
+
+  // Contact List
+
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
+
+  cardWrapper: {
+    flex: 1,
+    marginHorizontal: 5,
+    marginBottom: 10,
+  },
+
+  listWrapper: {
+    marginHorizontal: 12,
+    marginBottom: 9,
+  },
+
+  listContent: {
+    paddingTop: 5,
+    paddingBottom: 15,
+    flexGrow: 1,
+  },
+
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 35,
+    fontSize: 15,
+  },
+
+  // Floating Add Button
+
+  floatingAddButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 78,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#12A6AD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 7,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+  },
+
+  plusIcon: {
+    fontSize: 34,
+    color: '#FFFFFF',
+    fontWeight: '300',
+    lineHeight: 38,
+  },
+
+  // Bottom Navigation
+
+  bottomNavigation: {
+    height: 58,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+
+  bottomNavItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+
+  bottomNavText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+
+  // Loading and Errors
 
   loadingContainer: {
     flex: 1,
@@ -663,132 +1158,33 @@ const styles = StyleSheet.create({
 
   loadingText: {
     fontSize: 16,
-    color: '#555555',
+    color: '#777777',
     marginTop: 12,
   },
 
-  title: {
-    fontSize: 25,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-
-  subtitle: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-
-  favoriteCount: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 10,
-    marginBottom: 10,
-  },
-
-  searchInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-  },
-
-  addButton: {
-    backgroundColor: '#2196F3',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-
-  favoritesButton: {
-    backgroundColor: '#650B29',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  buttonText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-
-  settingsContainer: {
-    padding: 12,
-    marginBottom: 10,
-  },
-
-  settingsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-
-  settingButton: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-
-  settingButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-
-  layoutContainer: {
+  usersLoading: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingVertical: 5,
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 15,
   },
 
-  layoutButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 8,
-    backgroundColor: '#DDDDDD',
+  footerText: {
+    fontSize: 13,
+    marginLeft: 8,
   },
 
-  activeLayoutButton: {
-    backgroundColor: '#90CAF9',
-  },
-
-  layoutButtonText: {
-    color: '#222222',
-    fontWeight: '600',
-  },
-
-  columnWrapper: {
-    justifyContent: 'space-between',
-  },
-
-  cardWrapper: {
-    flex: 1,
-    marginHorizontal: 5,
-    marginBottom: 12,
-  },
-
-  listWrapper: {
-    width: '100%',
-    marginBottom: 10,
-  },
-
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 25,
-    flexGrow: 1,
-  },
-
-  emptyText: {
+  noMoreText: {
     textAlign: 'center',
-    marginTop: 35,
-    fontSize: 16,
+    padding: 18,
+    fontSize: 12,
   },
 
   errorContainer: {
     backgroundColor: '#FDECEC',
     borderRadius: 8,
     padding: 10,
+    marginHorizontal: 14,
     marginBottom: 8,
   },
 
@@ -800,39 +1196,14 @@ const styles = StyleSheet.create({
   retryButton: {
     backgroundColor: '#D9534F',
     padding: 10,
-    borderRadius: 6,
+    borderRadius: 7,
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 8,
+    marginHorizontal: 14,
   },
 
-  usersSection: {
-    marginTop: 15,
-    marginBottom: 15,
-  },
-
-  sectionTitle: {
-    fontSize: 19,
+  buttonText: {
+    color: '#FFFFFF',
     fontWeight: 'bold',
-    marginBottom: 10,
-    marginTop: 8,
-  },
-
-  usersLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 15,
-  },
-
-  footerText: {
-    fontSize: 14,
-    marginLeft: 8,
-  },
-
-  noMoreText: {
-    textAlign: 'center',
-    color: '#777777',
-    padding: 20,
-    fontSize: 14,
   },
 });

@@ -1,11 +1,16 @@
 import React from 'react';
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+// Icons8 SVG icons
+import HeartIcon from '../assets/icons/heart.svg';
+import EditIcon from '../assets/icons/edit.svg';
+import DeleteIcon from '../assets/icons/delete.svg';
 type Props = {
   id: string;
   name: string;
   phone: string;
+  image?: string | null;
   isFavorite: boolean;
   displayMode: 'list' | 'cards';
   theme: 'light' | 'dark';
@@ -18,6 +23,7 @@ type Props = {
 const ContactCard = ({
   name,
   phone,
+  image,
   isFavorite,
   displayMode,
   theme,
@@ -29,11 +35,13 @@ const ContactCard = ({
   const isCardMode = displayMode === 'cards';
   const isDark = theme === 'dark';
 
-  const cardBackground = isDark ? '#292929' : '#FFFFFF';
-  const textColor = isDark ? '#FFFFFF' : '#222222';
-  const phoneColor = isDark ? '#BBBBBB' : '#666666';
-  const borderColor = isDark ? '#444444' : '#DDDDDD';
+  // Theme colors
+  const cardBackground = isDark ? '#142D3D' : '#FFFFFF';
+  const textColor = isDark ? '#FFFFFF' : '#172B3A';
+  const phoneColor = isDark ? '#A9BBC5' : '#667785';
+  const borderColor = isDark ? '#294657' : '#E2EAF0';
 
+  // Generate initials when profile image is unavailable
   const getInitials = (fullName: string) => {
     const words = fullName.trim().split(/\s+/);
 
@@ -50,7 +58,7 @@ const ContactCard = ({
         styles.card,
         {
           backgroundColor: cardBackground,
-          borderColor,
+          borderColor: borderColor,
         },
         isCardMode ? styles.gridCard : styles.listCard,
       ]}
@@ -60,14 +68,22 @@ const ContactCard = ({
         style={[styles.mainContent, isCardMode && styles.gridMainContent]}
         onPress={onPress}
       >
-        {/* Avatar */}
-        <View style={styles.avatar}>
-          <Text style={styles.initials}>{getInitials(name)}</Text>
-        </View>
+        {/* Contact Avatar */}
+        {image ? (
+          <Image
+            source={{ uri: image }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.initials}>{getInitials(name)}</Text>
+          </View>
+        )}
 
         {/* Name and Phone */}
         <View style={styles.contactInfo}>
-          <Text style={[styles.name, { color: textColor }]} numberOfLines={2}>
+          <Text style={[styles.name, { color: textColor }]} numberOfLines={1}>
             {name}
           </Text>
 
@@ -80,21 +96,38 @@ const ContactCard = ({
       {/* Action Buttons */}
       <View style={[styles.actions, isCardMode && styles.gridActions]}>
         {/* Favorite */}
-        <Pressable style={styles.favoriteButton} onPress={onFavoriteButton}>
-          <Text style={styles.favoriteIcon}>{isFavorite ? '❤️' : '♡'}</Text>
+        <Pressable
+          style={styles.iconButton}
+          onPress={onFavoriteButton}
+          hitSlop={8}
+        >
+          {isFavorite ? <Text> ❤️</Text> : <HeartIcon width={22} height={22} />}
         </Pressable>
 
         {/* Edit */}
         {onEditContact && (
-          <Pressable style={styles.editButton} onPress={onEditContact}>
-            <Text style={styles.actionText}>Edit</Text>
+          <Pressable
+            style={styles.iconButton}
+            onPress={onEditContact}
+            hitSlop={8}
+          >
+            <EditIcon width={20} height={20} />
           </Pressable>
         )}
 
         {/* Delete */}
         {onDeleteContact && (
-          <Pressable style={styles.deleteButton} onPress={onDeleteContact}>
-            <Text style={styles.actionText}>Delete</Text>
+          <Pressable
+            style={styles.iconButton}
+            onPress={onDeleteContact}
+            hitSlop={8}
+          >
+            {/* <DeleteIcon width={20} height={20} /> */}
+            <DeleteIcon
+              width={20}
+              height={20}
+              // color={isDark ? '#FF5252' : '#ec2121'}
+            />
           </Pressable>
         )}
       </View>
@@ -106,24 +139,34 @@ export default ContactCard;
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 10,
+    padding: 14,
+
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
   },
 
-  // List mode
+  // List Mode
   listCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 72,
+    minHeight: 82,
+    marginBottom: 10,
   },
 
-  // Cards mode
+  // Grid / Cards Mode
   gridCard: {
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'stretch',
-    minHeight: 155,
+    minHeight: 175,
   },
 
   mainContent: {
@@ -139,10 +182,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
 
+  // Avatar
   avatar: {
-    height: 44,
-    width: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#DCEBFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -154,6 +198,7 @@ const styles = StyleSheet.create({
     color: '#1769AA',
   },
 
+  // Contact Information
   contactInfo: {
     marginLeft: 10,
     flex: 1,
@@ -162,7 +207,7 @@ const styles = StyleSheet.create({
 
   name: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 
   phone: {
@@ -170,6 +215,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
 
+  // Action Buttons
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -181,37 +227,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#777777',
-    justifyContent: 'space-between',
+    borderTopColor: '#526675',
+    justifyContent: 'space-around',
   },
 
-  favoriteButton: {
-    padding: 5,
-  },
-
-  favoriteIcon: {
-    fontSize: 20,
-  },
-
-  editButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    marginLeft: 4,
-  },
-
-  deleteButton: {
-    backgroundColor: '#D9534F',
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    marginLeft: 4,
-  },
-
-  actionText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: 'bold',
+  iconButton: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
