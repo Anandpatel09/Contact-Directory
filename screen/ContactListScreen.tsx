@@ -44,6 +44,7 @@ import GridIcon from '../assets/icons/grid.svg';
 import ListIcon from '../assets/icons/list.svg';
 import SearchIcon from '../assets/icons/search.svg';
 import HeartIcon from '../assets/icons/heart.svg';
+import LogoutButton from '../Components/LogoutButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactList'>;
 
@@ -390,7 +391,9 @@ const ContactListScreen = ({ navigation }: Props) => {
                 All your contacts in one place
               </Text>
             </View>
-
+            <View>
+              <LogoutButton />
+            </View>
             <View>
               {/* Theme Toggle */}
 
@@ -561,7 +564,7 @@ const ContactListScreen = ({ navigation }: Props) => {
       style={[styles.safeArea, { backgroundColor }]}
       edges={['top', 'bottom']}
     >
-      <StatusBar backgroundColor={headerColor} barStyle="light-content" />
+      {/* <StatusBar backgroundColor={headerColor} barStyle="light-content" /> */}
 
       <View style={[styles.container, { backgroundColor }]}>
         {/* CONTACT LIST */}
@@ -947,9 +950,9 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  toggleContainer:{
-  flex:1,
-  flexDirection:'row'
+  toggleContainer: {
+    flex: 1,
+    flexDirection: 'row',
   },
   // Favorites Banner
 

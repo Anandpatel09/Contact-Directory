@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "317616139032",
+    "project_id": "contactdirectory-b7dc7",
+    "storage_bucket": "contactdirectory-b7dc7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:317616139032:android:73e36f5a179dc15c990c6d",
+        "android_client_info": {
+          "package_name": "com.contactdirectory"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4yRzEWl2Gd2HtGc4228XL-CbLEKvdH-8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

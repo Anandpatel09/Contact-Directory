@@ -1,4 +1,3 @@
-
 // export type RootStackParamList = {
 //   ContactList: undefined;
 
@@ -16,4 +15,7 @@ export type RootStackParamList = {
   };
 
   Favorites: undefined;
+  //firebase authentication screen
+  PhoneLogin: undefined;
+  OtpVerification: undefined;
 };
